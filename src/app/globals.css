@@ -1,0 +1,135 @@
+@import "tailwindcss";
+
+/*
+ * Trampolin design tokens.
+ * Warm-paper neutrals, a single "bed blue" action colour and a "pad orange" highlight
+ * borrowed from competition trampoline frames. Evidence states each get one hue.
+ */
+:root {
+  --bg: #f5f4ef;
+  --surface: #ffffff;
+  --surface-2: #efede6;
+  --ink: #12161c;
+  --ink-2: #3b434e;
+  --muted: #646d78;
+  --line: #dedbd1;
+  --line-strong: #c7c3b6;
+  --accent: #2346d9;
+  --accent-ink: #ffffff;
+  --accent-soft: #e6ebff;
+  --pad: #e8590c;
+  --pad-soft: #fff0e6;
+  --ok: #1f7a4d;
+  --ok-soft: #e3f4ea;
+  --warn: #9a6200;
+  --warn-soft: #fdf1d8;
+  --info: #1f5f99;
+  --info-soft: #e2eef9;
+  --violet: #6a3fb5;
+  --violet-soft: #efe8fb;
+  --danger: #b42318;
+  --danger-soft: #fdeaea;
+  --focus: #2346d9;
+  --shadow: 0 1px 2px rgb(18 22 28 / 0.06), 0 1px 1px rgb(18 22 28 / 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1116;
+    --surface: #161a21;
+    --surface-2: #1d222b;
+    --ink: #eef0f3;
+    --ink-2: #c5cad2;
+    --muted: #949ca8;
+    --line: #2a313c;
+    --line-strong: #3a4250;
+    --accent: #7d95ff;
+    --accent-ink: #0b0e14;
+    --accent-soft: #1e2748;
+    --pad: #ff8a4c;
+    --pad-soft: #3a2316;
+    --ok: #5cc98f;
+    --ok-soft: #13291e;
+    --warn: #f0b44c;
+    --warn-soft: #2e2412;
+    --info: #79b4ea;
+    --info-soft: #142536;
+    --violet: #b79bf0;
+    --violet-soft: #251c38;
+    --danger: #ff8278;
+    --danger-soft: #3a1714;
+    --focus: #7d95ff;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-pad: var(--pad);
+  --color-pad-soft: var(--pad-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-violet: var(--violet);
+  --color-violet-soft: var(--violet-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  --radius-card: 14px;
+  --radius-control: 10px;
+  --shadow-card: var(--shadow);
+}
+
+html {
+  color-scheme: light dark;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Long-form text inside entries and posts. */
+.prose-tb p + p {
+  margin-top: 0.75rem;
+}
+.prose-tb {
+  line-height: 1.65;
+  color: var(--ink-2);
+}
