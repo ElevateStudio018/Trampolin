@@ -59,3 +59,18 @@ describe("registration and sessions", () => {
     expect(await authenticate("curator@system.invalid", "anything at all")).toBeNull();
   });
 });
+
+describe("password change", () => {
+  it("requires the current password, signs out other sessions and accepts the new password", async () => {
+    const { changePassword } = await import("@/server/me/profile");
+    const u = await makeUser();
+    const { token } = await createSession(u.id);
+    await expect(changePassword(u, "wrong current", "a brand new password")).rejects.toBeInstanceOf(ValidationError);
+    await expect(changePassword(u, u.password, "short")).rejects.toBeInstanceOf(ValidationError);
+    await expect(changePassword(u, u.password, u.password)).rejects.toBeInstanceOf(ValidationError);
+    await changePassword(u, u.password, "a brand new password");
+    expect(await actorFromToken(token)).toBeNull();
+    expect(await authenticate(u.email, u.password)).toBeNull();
+    expect(await authenticate(u.email, "a brand new password")).toEqual({ id: u.id });
+  });
+});

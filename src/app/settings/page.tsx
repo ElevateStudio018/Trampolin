@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Badge, Card, Container, PageHeader, SectionTitle, buttonClass, formatDate } from "@/components/ui";
 import { requireActor } from "@/server/auth/current";
 import { getOwnProfile } from "@/server/me/profile";
-import { DeleteAccountForm, ProfileForm } from "./forms";
+import { ChangePasswordForm, DeleteAccountForm, ProfileForm } from "./forms";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -30,6 +30,12 @@ export default async function SettingsPage() {
         <Card className="p-5">
           <ProfileForm profile={profile} />
         </Card>
+        <section>
+          <SectionTitle>Password</SectionTitle>
+          <Card className="p-5">
+            <ChangePasswordForm />
+          </Card>
+        </section>
         <section>
           <SectionTitle>Your data</SectionTitle>
           <Card className="flex flex-col gap-3 p-5 text-sm sm:flex-row sm:items-center sm:justify-between">

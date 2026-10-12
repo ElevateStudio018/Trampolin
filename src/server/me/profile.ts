@@ -15,7 +15,9 @@ import {
 import { ValidationError, UnauthorizedError } from "@/lib/errors";
 import { type Actor, assertSignedIn, hasRole } from "@/server/actor";
 import { audit } from "@/server/audit";
-import { verifyPassword } from "@/server/auth/password";
+import { hashPassword, verifyPassword } from "@/server/auth/password";
+import { revokeAllSessions } from "@/server/auth/service";
+import { rateLimit } from "@/server/ratelimit";
 import { storage } from "@/server/storage";
 
 export const profileInputSchema = z.object({
@@ -98,7 +100,7 @@ export async function exportMyData(actor: Actor) {
     profile,
     collection: await db.select().from(collectionItems).where(eq(collectionItems.userId, actor.id)),
     progressLogs: await db.select().from(progressLogs).where(eq(progressLogs.userId, actor.id)),
-    videos: (await db.select().from(videos).where(eq(videos.ownerId, actor.id))).map(({ storageKey: _k, ...v }) => v),
+    videos: (await db.select().from(videos).where(eq(videos.ownerId, actor.id))).map(({ storageKey: _k, posterKey: _p, ...v }) => v),
     posts: await db.select().from(posts).where(eq(posts.authorId, actor.id)),
     comments: await db.select().from(comments).where(eq(comments.authorId, actor.id)),
     assistantQuestions: await db
@@ -117,10 +119,23 @@ export async function deleteAccount(actor: Actor, password: string) {
   const [u] = await db.select({ hash: users.passwordHash }).from(users).where(eq(users.id, actor.id));
   if (!u || !(await verifyPassword(password, u.hash))) throw new UnauthorizedError("Password is incorrect");
   const keys = await db.transaction(async (tx) => {
-    const vids = await tx.select({ key: videos.storageKey }).from(videos).where(eq(videos.ownerId, actor.id));
+    const vids = await tx.select({ key: videos.storageKey, poster: videos.posterKey }).from(videos).where(eq(videos.ownerId, actor.id));
     await audit(null, "account.delete", "user", actor.id, {}, tx);
     await tx.delete(users).where(eq(users.id, actor.id));
-    return vids.map((v) => v.key);
+    return vids.flatMap((v) => (v.poster ? [v.key, v.poster] : [v.key]));
   });
   await Promise.all(keys.map((k) => storage().delete(k).catch(() => undefined)));
+}
+
+/** Changes the password after re-checking the current one and signs out every other session. */
+export async function changePassword(actor: Actor, current: string, next: string) {
+  assertSignedIn(actor);
+  await rateLimit(`change-password:${actor.id}`, 10, 3600);
+  if (next.length < 10 || next.length > 200) throw new ValidationError("Use at least 10 characters", { newPassword: ["Use at least 10 characters"] });
+  if (next === current) throw new ValidationError("Choose a different password", { newPassword: ["Choose a different password"] });
+  const [u] = await db.select({ hash: users.passwordHash }).from(users).where(eq(users.id, actor.id));
+  if (!u || !(await verifyPassword(current, u.hash))) throw new ValidationError("Current password is incorrect", { currentPassword: ["Incorrect password"] });
+  await db.update(users).set({ passwordHash: await hashPassword(next) }).where(eq(users.id, actor.id));
+  await revokeAllSessions(actor.id);
+  await audit(actor.id, "account.password_change", "user", actor.id);
 }

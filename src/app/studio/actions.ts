@@ -45,9 +45,9 @@ export async function createEntryAction(_: ActionState, fd: FormData): Promise<A
 
 export async function updateEntryAction(_: ActionState, fd: FormData): Promise<ActionState> {
   return runAction(fd, async () => {
-    await updateEntry(str(fd, "id"), entryInput(fd), Number(str(fd, "revision")), str(fd, "changeSummary"), await getActor());
+    const updated = await updateEntry(str(fd, "id"), entryInput(fd), Number(str(fd, "contentVersion")), str(fd, "changeSummary"), await getActor());
     revalidatePath("/tricks", "layout");
-    return { ok: true, message: "Saved as a new revision." };
+    return { ok: true, message: "Saved as a new revision.", values: { contentVersion: String(updated.contentVersion) } };
   });
 }
 

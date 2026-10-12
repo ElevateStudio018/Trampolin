@@ -90,6 +90,8 @@ describe("editing permissions and publishing rules", () => {
     await expect(updateEntry(e.id, { canonicalName: "Test publish skill", summary: "Stale edit for testing." }, 1, "Stale", reviewer)).rejects.toBeInstanceOf(ConflictError);
 
     await expect(setEntryState(e.id, "published", reviewer)).rejects.toThrow(/at least one claim/);
+    // State changes and claims bump the history revision but not the content version.
+    expect((await getEntryBySlug(e.slug, reviewer))!.contentVersion).toBe(2);
     await expect(addClaim(e.id, { statement: "An uncited claim marked limited.", status: "limited", citations: [] }, reviewer)).rejects.toBeInstanceOf(ValidationError);
 
     const src = await upsertSource({ url: "https://example.org/glossary", title: "Example glossary" });

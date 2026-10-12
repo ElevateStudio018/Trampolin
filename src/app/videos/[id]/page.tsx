@@ -6,6 +6,7 @@ import { Badge, Card, Container, Notice, SectionTitle, StatusBadge, formatBytes,
 import { getActor } from "@/server/auth/current";
 import { searchEntries } from "@/server/kb/entries";
 import { analyzerCatalog, getVideo } from "@/server/video/service";
+import { BROWSER_PLAYABLE_CODECS } from "@/server/video/analyzers";
 import { ReportButton } from "@/app/community/report";
 import { AnalyzeButton, DeleteVideoButton, EditVideoForm } from "./edit-form";
 
@@ -44,7 +45,7 @@ export default async function VideoPage({ params }: { params: Promise<{ id: stri
         <div className="flex min-w-0 flex-col gap-4">
           <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-black">
             {v.status === "ready" ? (
-              <video controls preload="metadata" className="aspect-video w-full" src={`/api/videos/${v.id}/stream`}>
+              <video controls preload="metadata" className="aspect-video w-full" src={`/api/videos/${v.id}/stream`} poster={v.posterKey ? `/api/videos/${v.id}/poster` : undefined}>
                 Your browser can&apos;t play this video.
               </video>
             ) : (
@@ -78,6 +79,11 @@ export default async function VideoPage({ params }: { params: Promise<{ id: stri
           </div>
           {v.hiddenByModeration && <Notice tone="danger" title="Hidden by moderators">Only you and administrators can see this video.</Notice>}
           {v.status === "failed" && <Notice tone="danger" title="Processing failed">{v.statusMessage}</Notice>}
+          {v.status === "ready" && v.codec && !BROWSER_PLAYABLE_CODECS.has(v.codec) && (
+            <Notice tone="warn" title="May not play in every browser">
+              This video uses the {v.codec.toUpperCase()} codec, which some browsers can&apos;t play. Re-export it as H.264 (MP4) if it doesn&apos;t play for you.
+            </Notice>
+          )}
           {v.description && <p className="whitespace-pre-line text-ink-2">{v.description}</p>}
           {actor && !data.isOwner && <ReportButton targetType="video" targetId={v.id} />}
 

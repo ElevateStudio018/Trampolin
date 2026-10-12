@@ -3,8 +3,8 @@
 import { redirect } from "next/navigation";
 import type { ActionState } from "@/lib/action-state";
 import { runAction, str } from "@/server/action";
-import { endSession, getActor } from "@/server/auth/current";
-import { deleteAccount, updateProfile } from "@/server/me/profile";
+import { endSession, getActor, startSession } from "@/server/auth/current";
+import { changePassword, deleteAccount, updateProfile } from "@/server/me/profile";
 import { rateLimit } from "@/server/ratelimit";
 
 export async function updateProfileAction(_: ActionState, fd: FormData): Promise<ActionState> {
@@ -30,4 +30,16 @@ export async function deleteAccountAction(_: ActionState, fd: FormData): Promise
   });
   if (res.ok) redirect("/?deleted=1");
   return res;
+}
+
+export async function changePasswordAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  return runAction(fd, async () => {
+    const actor = await getActor();
+    if (str(fd, "newPassword") !== str(fd, "confirmPassword"))
+      return { ok: false, message: "The new passwords don't match.", fieldErrors: { confirmPassword: ["Doesn't match"] } };
+    await changePassword(actor, str(fd, "currentPassword"), str(fd, "newPassword"));
+    // All sessions were revoked; keep this browser signed in with a fresh session.
+    await startSession(actor!.id);
+    return { ok: true, message: "Password changed. Other devices have been signed out." };
+  });
 }

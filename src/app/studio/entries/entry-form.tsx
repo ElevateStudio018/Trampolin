@@ -6,7 +6,7 @@ import { addClaimAction, addRelationAction, createEntryAction, removeClaimAction
 
 export type EntryFormValues = {
   id?: string;
-  revision?: number;
+  contentVersion?: number;
   canonicalName: string;
   summary: string;
   body: string;
@@ -34,7 +34,7 @@ export function EntryForm({ initial, categories }: { initial: EntryFormValues; c
             {editing && (
               <>
                 <input type="hidden" name="id" value={initial.id} />
-                <input type="hidden" name="revision" value={initial.revision} />
+                <input type="hidden" name="contentVersion" value={s.values?.contentVersion ?? initial.contentVersion} />
               </>
             )}
             <div className="grid gap-4 sm:grid-cols-[1fr_10rem]">

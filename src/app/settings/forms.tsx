@@ -1,7 +1,7 @@
 "use client";
 
 import { ActionForm, Field, FormMessage, Input, Select, SubmitButton, Textarea } from "@/components/forms";
-import { deleteAccountAction, updateProfileAction } from "./actions";
+import { changePasswordAction, deleteAccountAction, updateProfileAction } from "./actions";
 
 type Profile = { displayName: string; bio: string; homeClub: string; profileVisibility: string; collectionVisibility: string };
 
@@ -70,6 +70,32 @@ export function DeleteAccountForm() {
           </Field>
           <div>
             <SubmitButton variant="danger" pendingLabel="Deleting…">Delete my account and data</SubmitButton>
+          </div>
+        </>
+      )}
+    </ActionForm>
+  );
+}
+
+export function ChangePasswordForm() {
+  return (
+    <ActionForm action={changePasswordAction} resetOnSuccess className="flex flex-col gap-3">
+      {(s) => (
+        <>
+          <FormMessage state={s} />
+          <Field label="Current password" name="currentPassword" error={s.fieldErrors?.currentPassword}>
+            <Input name="currentPassword" type="password" autoComplete="current-password" required invalid={!!s.fieldErrors?.currentPassword} />
+          </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="New password" name="newPassword" hint="At least 10 characters." error={s.fieldErrors?.newPassword}>
+              <Input name="newPassword" type="password" autoComplete="new-password" required minLength={10} invalid={!!s.fieldErrors?.newPassword} />
+            </Field>
+            <Field label="Repeat new password" name="confirmPassword" error={s.fieldErrors?.confirmPassword}>
+              <Input name="confirmPassword" type="password" autoComplete="new-password" required invalid={!!s.fieldErrors?.confirmPassword} />
+            </Field>
+          </div>
+          <div>
+            <SubmitButton variant="secondary" pendingLabel="Changing…">Change password</SubmitButton>
           </div>
         </>
       )}

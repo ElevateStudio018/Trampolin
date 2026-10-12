@@ -40,11 +40,10 @@ export default async function EditEntryPage({ params }: { params: Promise<{ id: 
         <div className="flex min-w-0 flex-col gap-8">
           <Card className="p-5">
             <EntryForm
-              key={entry.revision}
               categories={categories}
               initial={{
                 id: entry.id,
-                revision: entry.revision,
+                contentVersion: entry.contentVersion,
                 canonicalName: entry.canonicalName,
                 summary: entry.summary,
                 body: entry.body,

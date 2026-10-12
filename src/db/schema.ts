@@ -114,7 +114,11 @@ export const entries = pgTable(
       sql`setweight(to_tsvector('simple', coalesce(search_names, '')), 'A') || setweight(to_tsvector('english', coalesce(summary, '')), 'B') || setweight(to_tsvector('english', coalesce(body, '')), 'C')`,
     ),
     lastReviewedAt: timestamp("last_reviewed_at", { withTimezone: true }),
+    // History counter: bumped by every change (text, claims, state).
     revision: integer("revision").notNull().default(1),
+    // Optimistic-concurrency token for the editable text fields only, so adding a claim
+    // doesn't invalidate an open edit form while concurrent text edits still conflict.
+    contentVersion: integer("content_version").notNull().default(1),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -382,6 +386,8 @@ export const videos = pgTable(
     height: integer("height"),
     frameRate: text("frame_rate"),
     codec: text("codec"),
+    // Storage key of a JPEG frame extracted by ffmpeg; null until processed or if extraction failed.
+    posterKey: text("poster_key"),
     status: videoStatus("status").notNull().default("uploaded"),
     statusMessage: text("status_message").notNull().default(""),
     visibility: visibility("visibility").notNull().default("private"),

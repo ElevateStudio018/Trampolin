@@ -63,6 +63,32 @@ export function ffprobe(filePath: string, timeoutMs = 20_000): Promise<ProbeResu
   });
 }
 
+/** Extracts one JPEG frame (max 640 px wide) to use as the video's poster image. */
+export function extractPoster(filePath: string, outPath: string, atSeconds: number, timeoutMs = 20_000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(
+      "ffmpeg",
+      ["-v", "error", "-y", "-ss", atSeconds.toFixed(2), "-i", filePath, "-frames:v", "1", "-vf", "scale='min(640,iw)':-2", "-q:v", "4", "-f", "image2", outPath],
+      { stdio: ["ignore", "ignore", "pipe"] },
+    );
+    let errText = "";
+    const timer = setTimeout(() => proc.kill("SIGKILL"), timeoutMs);
+    proc.stderr.on("data", (d) => (errText += d));
+    proc.on("error", (e) => {
+      clearTimeout(timer);
+      reject(new Error(`ffmpeg could not run: ${e.message}`));
+    });
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg failed: ${errText.trim().slice(0, 200) || `exit ${code}`}`));
+    });
+  });
+}
+
+/** Codecs that current desktop and mobile browsers can play in a <video> element. */
+export const BROWSER_PLAYABLE_CODECS = new Set(["h264", "vp8", "vp9", "av1"]);
+
 class MetadataAnalyzer implements VideoAnalyzer {
   readonly id = "technical-metadata";
   readonly label = "Technical metadata";

@@ -1,11 +1,14 @@
 "use client";
 
-import { useActionState, useEffect, useRef, type ComponentProps, type ReactNode } from "react";
+import { createContext, startTransition, useActionState, useContext, useEffect, useRef, type ComponentProps, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { type ActionState, initialActionState } from "@/lib/action-state";
 import { buttonClass } from "./ui";
+
+/** Pending state of the surrounding ActionForm, for forms submitted via a transition. */
+const PendingContext = createContext(false);
 
 export function SubmitButton({
   children,
@@ -15,7 +18,9 @@ export function SubmitButton({
   className,
   ...props
 }: ComponentProps<"button"> & { pendingLabel?: string; variant?: "primary" | "secondary" | "ghost" | "danger"; size?: "sm" | "md" }) {
-  const { pending } = useFormStatus();
+  const status = useFormStatus();
+  const contextPending = useContext(PendingContext);
+  const pending = status.pending || contextPending;
   return (
     <button type="submit" disabled={pending || props.disabled} aria-busy={pending} className={buttonClass(variant, size, className)} {...props}>
       {pending && <span aria-hidden className="size-3.5 animate-spin rounded-full border-2 border-current border-r-transparent" />}
@@ -86,7 +91,7 @@ export function ActionForm({
   resetOnSuccess?: boolean;
   refreshOnSuccess?: boolean;
 }) {
-  const [state, formAction] = useActionState(action, initialActionState);
+  const [state, formAction, isPending] = useActionState(action, initialActionState);
   const ref = useRef<HTMLFormElement>(null);
   const router = useRouter();
   useEffect(() => {
@@ -96,9 +101,26 @@ export function ActionForm({
     if (resetOnSuccess) ref.current?.reset();
   }, [state, resetOnSuccess, refreshOnSuccess, router]);
   return (
-    <form ref={ref} action={formAction} className={className} noValidate {...props}>
-      {children(state)}
-    </form>
+    <PendingContext.Provider value={isPending}>
+      <form
+        ref={ref}
+        // Without JavaScript the form still posts to the server action.
+        action={formAction}
+        // With JavaScript, dispatch manually: React 19 resets a form after an action passed via
+        // the `action` prop, which snaps <select> elements back to stale defaults. Forms that
+        // should clear opt in with resetOnSuccess.
+        onSubmit={(e) => {
+          e.preventDefault();
+          const fd = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
+          startTransition(() => formAction(fd));
+        }}
+        className={className}
+        noValidate
+        {...props}
+      >
+        {children(state)}
+      </form>
+    </PendingContext.Provider>
   );
 }
 

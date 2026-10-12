@@ -139,7 +139,7 @@ export async function listMyVideos(actor: Actor) {
 
 export async function listSharedVideos(actor: Actor, limit = 24) {
   return db
-    .select({ id: videos.id, title: videos.title, createdAt: videos.createdAt, ownerHandle: profiles.handle, ownerName: profiles.displayName, entryName: entries.canonicalName })
+    .select({ id: videos.id, title: videos.title, createdAt: videos.createdAt, hasPoster: sql<boolean>`${videos.posterKey} is not null`, ownerHandle: profiles.handle, ownerName: profiles.displayName, entryName: entries.canonicalName })
     .from(videos)
     .innerJoin(profiles, eq(profiles.userId, videos.ownerId))
     .leftJoin(entries, eq(entries.id, videos.entryId))
@@ -182,6 +182,7 @@ export async function deleteVideo(actor: Actor, id: string) {
   if (v.ownerId !== actor.id && !hasRole(actor, "admin")) throw new ForbiddenError();
   await db.delete(videos).where(eq(videos.id, id));
   await storage().delete(v.storageKey);
+  if (v.posterKey) await storage().delete(v.posterKey);
   await audit(actor.id, "video.delete", "video", id);
 }
 

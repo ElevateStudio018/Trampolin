@@ -4,7 +4,7 @@ _Last updated: 2026-10-12. Read this first when resuming work._
 
 ## Summary
 
-A working first version of the whole platform: a Trick Book with per-statement citations and evidence labels, personal collections and private notes, a research agent with a review queue, a grounded assistant, a private video library with an extensible analysis boundary, community features with moderation, and staff tooling. The core flows are covered by integration tests (82) and browser end-to-end tests (14), all passing at the time of writing.
+A working first version of the whole platform: a Trick Book with per-statement citations and evidence labels, personal collections and private notes, a research agent with a review queue, a grounded assistant, a private video library with an extensible analysis boundary, community features with moderation, and staff tooling. The core flows are covered by integration tests (84) and browser end-to-end tests (18), all passing at the time of writing.
 
 Stack and layout: see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Setup: [`README.md`](README.md). Deployment: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
@@ -21,8 +21,8 @@ Status values: `verified_against_criteria` · `tested_with_limitations` · `impl
 | Accounts, sessions, roles, rate limits | verified_against_criteria | `auth.test.ts`: hashed tokens, suspension, a curator account that can't sign in, duplicate handling. e2e: sign-up/in/out, and `/studio` is forbidden to members. |
 | Personal collection | verified_against_criteria | Saved state survives reload (e2e). Other users get Forbidden for private collections. Visibility settings are honoured (`collection.test.ts`). |
 | Progress history & private notes | verified_against_criteria | Owner-only reads and deletes; future dates rejected; another member cannot see the notes (e2e). |
-| Profile & privacy settings UI | tested_with_limitations | Visibility logic is tested at service level and the settings page renders (visual test). Saving the form in a browser is not e2e-tested. |
-| Data export & account deletion | tested_with_limitations | Service tests: the export excludes secrets and storage paths; deletion removes rows and video files and needs the password. UI buttons not e2e-tested. |
+| Profile & privacy settings UI | verified_against_criteria | `e2e/forms.spec.ts`: saved values persist after reload and selects keep the new value immediately after saving (regression for a React 19 form-reset bug). |
+| Data export & account deletion | tested_with_limitations | Export: e2e downloads JSON without secrets. Deletion: service tests (removes rows, video files and posters, needs the password); the delete button is not e2e-tested. |
 | Research agent: pipeline with reviewer-supplied / pasted sources | verified_against_criteria | Verbatim excerpts, near-duplicate merging, conflict detection, idempotent jobs and drafts, blocked status when there are no sources, approval imports only ticked supported claims without publishing (`research.test.ts`, e2e). |
 | Research agent: automatic web search | blocked_by_external_dependency | Brave/Tavily adapters exist but no API key was available; never called for real. |
 | Research agent: page fetching | tested_with_limitations | SSRF guard, robots.txt and HTML parsing are unit-tested. A manual fetch of nodejs.org worked. Trampoline sites are not reachable from the build sandbox (DNS blocked). |
@@ -38,8 +38,11 @@ Status values: `verified_against_criteria` · `tested_with_limitations` · `impl
 | Community posts, likes, comments | verified_against_criteria | Visibility (members vs public) for visitors, like toggling, and no commenting on hidden posts (`community.test.ts`, e2e posting). |
 | Bookmarks | verified_against_criteria | Toggle and list covered in `community.test.ts`. |
 | Reports & moderation | verified_against_criteria | Duplicate reports absorbed, admin-only resolution, hiding removes content for others (tests + e2e). |
-| Admin user management (roles, suspension) | tested_with_limitations | Service tests: admin-only, no self-changes, suspension blocks sign-in and is reversible. The UI buttons are not e2e-tested. |
-| Entry editor (create, edit, claims, relations, publish) | tested_with_limitations | All service functions are tested; the editor UI renders, but its forms are not e2e-tested. |
+| Admin user management (roles, suspension) | verified_against_criteria | Service tests (admin-only, no self-changes, reversible suspension, handle search with `_`). e2e: an admin promotes a member, who then gets into Studio. The suspend button itself is not e2e-tested. |
+| Entry editor (create, edit, claims, relations, publish) | verified_against_criteria | e2e: create a draft, publishing is refused without a sourced claim, add a claim with a new source while unsaved text edits are kept, save with no false conflict, publish, then check the public page. The relations form is covered by service tests only. |
+| Password change | verified_against_criteria | Service test and e2e: the current password is required, other sessions are revoked, this browser stays signed in, and the new password works. |
+| Content-Security-Policy | verified_against_criteria | Per-request nonce via `src/proxy.ts`. e2e checks the header and that client navigation works with no CSP violations; the full suite passes with the policy on. |
+| Video poster images | verified_against_criteria | ffmpeg extracts a JPEG frame during processing, served with the same access check as the video and deleted with it (`video.test.ts`). |
 | Background worker & daily gap scan | verified_against_criteria | Ran `npm run worker`: it scheduled the scan and processed jobs. Without a search provider the scan lists gaps and queues nothing (test). |
 | Responsive layout, no horizontal overflow | verified_against_criteria | `e2e/visual.spec.ts` checks 18 pages at desktop and Pixel 7 sizes; screenshots were inspected manually, including dark mode. |
 
@@ -49,21 +52,20 @@ Status values: `verified_against_criteria` · `tested_with_limitations` · `impl
 
 ## Known limitations and bugs
 
-- No password reset or email verification (no email service is configured). No password change UI.
+- No password reset or email verification (no email service is configured). Password change while signed in is supported.
 - Local-disk video storage only, so it needs a persistent volume. Serverless hosting requires an S3 `BlobStorage` implementation.
-- Videos are served as uploaded: no transcoding or thumbnails. Some MOV/HEVC files will not play in every browser.
+- Videos are not transcoded. Codecs browsers can't play (e.g. HEVC) are flagged with a warning on the video page, but not converted.
 - Rate limiting keys on the last `X-Forwarded-For` entry, so it relies on a correctly configured reverse proxy.
 - The assistant is single-turn (no follow-up context). Retrieval-only answers repeat stored wording verbatim.
-- Conflict detection only compares twist counts. Other contradictions rely on reviewers.
+- Conflict detection compares twist and somersault counts. Other contradictions (e.g. landing position) rely on reviewers.
 - Fetched text and LLM output are treated as untrusted, but a prompt-injection attempt inside a fetched page could still distort an LLM draft. Quote validation and human review are the safeguards.
-- No Content-Security-Policy header yet (would need nonces for Next.js inline scripts).
-- Server-side form errors echo values, but the entry editor loses unsaved edits when a claim is added on the same page (it reloads at the new revision).
+- The CSP allows inline *styles* (`style-src 'unsafe-inline'`) for a few style attributes; scripts are nonce-only.
 
 ## Current priorities
 
 1. Have a reviewer verify the seed content against primary sources and fill the two unsourced drafts.
 2. Configure a search API and an Anthropic key in a staging environment. Run `npm run eval:assistant` and a few research jobs in model mode, and record cost and latency.
-3. Add e2e coverage for the settings, entry-editor and admin forms; add password reset once an email provider is chosen.
+3. Choose an email provider and add password reset and email verification.
 
 ## Environment variables (names only)
 
@@ -76,6 +78,6 @@ Status values: `verified_against_criteria` · `tested_with_limitations` · `impl
 ## Test results at last run
 
 - `npm run typecheck`, `npm run lint`: clean.
-- `npm test`: 8 files, 82 tests passed.
-- `npx playwright test` (after `next build`): 14 passed (desktop + mobile visual).
+- `npm test`: 8 files, 84 tests passed.
+- `npx playwright test` (after `next build`): 18 passed (desktop + mobile visual), run twice in a row without flakes.
 - `npm run eval:assistant` (retrieval-only): 13/13.

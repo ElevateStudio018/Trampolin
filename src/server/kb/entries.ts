@@ -457,8 +457,8 @@ export async function createEntry(input: EntryInput, actor: Actor, opts: { tx?: 
   }
 }
 
-/** Updates an entry with optimistic concurrency: `expectedRevision` must match the stored revision. */
-export async function updateEntry(entryId: string, input: EntryInput, expectedRevision: number, changeSummary: string, actor: Actor) {
+/** Updates an entry with optimistic concurrency: `expectedContentVersion` must match the stored content version. */
+export async function updateEntry(entryId: string, input: EntryInput, expectedContentVersion: number, changeSummary: string, actor: Actor) {
   assertRole(actor, "reviewer");
   const data = parseEntryInput(input);
   if (!changeSummary.trim()) throw new ValidationError("Describe what changed", { changeSummary: ["Required"] });
@@ -466,7 +466,7 @@ export async function updateEntry(entryId: string, input: EntryInput, expectedRe
     return await db.transaction(async (tx) => {
       const [current] = await tx.select().from(entries).where(eq(entries.id, entryId)).for("update");
       if (!current) throw new NotFoundError("Entry not found");
-      if (current.revision !== expectedRevision)
+      if (current.contentVersion !== expectedContentVersion)
         throw new ConflictError("This entry was changed by someone else since you opened it. Reload and re-apply your edit.");
       const dupes = (await findPossibleDuplicates([data.canonicalName, ...data.aliases.map(([, a]) => a)], entryId, tx)).filter((d) => d.match === "exact");
       if (dupes.length) throw new ConflictError(`Name or alias clashes with existing entry "${dupes[0]!.name}"`);
@@ -488,6 +488,7 @@ export async function updateEntry(entryId: string, input: EntryInput, expectedRe
           tags: [...new Set(data.tags)],
           searchNames: searchNamesFor(data.canonicalName, data.aliases),
           revision: nextRevision,
+          contentVersion: current.contentVersion + 1,
           updatedAt: new Date(),
           lastReviewedAt: new Date(),
         })

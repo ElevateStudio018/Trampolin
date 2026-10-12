@@ -1,4 +1,5 @@
 import { and, desc, eq, lt, or, sql, type SQL } from "drizzle-orm";
+import { escapeLike } from "@/lib/text";
 import { z } from "zod";
 import { db } from "@/db";
 import { comments, entries, postBookmarks, postLikes, posts, profiles, reports, users, videos } from "@/db/schema";
@@ -235,7 +236,7 @@ export async function resolveReport(actor: Actor, reportId: string, action: "hid
 
 export async function listUsers(actor: Actor, q = "") {
   assertRole(actor, "admin");
-  const like = `%${q.replace(/[%_]/g, "")}%`;
+  const like = `%${escapeLike(q)}%`;
   return db
     .select({ id: users.id, email: users.email, role: users.role, suspendedAt: users.suspendedAt, createdAt: users.createdAt, handle: profiles.handle, displayName: profiles.displayName })
     .from(users)

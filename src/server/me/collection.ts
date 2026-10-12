@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { escapeLike } from "@/lib/text";
 import { z } from "zod";
 import { db } from "@/db";
 import { categories, collectionItems, entries, profiles, progressLogs, videos } from "@/db/schema";
@@ -48,7 +49,7 @@ export async function listCollection(actor: Actor, ownerId: string, opts: { stat
   const where = [eq(collectionItems.userId, ownerId), eq(entries.state, "published")];
   if (opts.status) where.push(eq(collectionItems.status, opts.status));
   if (opts.q?.trim()) {
-    const like = `%${opts.q.trim().replace(/[%_]/g, "")}%`;
+    const like = `%${escapeLike(opts.q.trim())}%`;
     where.push(or(ilike(entries.canonicalName, like), ilike(entries.searchNames, like))!);
   }
   return db

@@ -5,7 +5,7 @@ import { entries, jobs, researchDrafts } from "@/db/schema";
 import { ConflictError, ForbiddenError, ValidationError } from "@/lib/errors";
 import { runOne } from "@/server/jobs/runner";
 import { getEntryBySlug, searchEntries } from "@/server/kb/entries";
-import { detectConflicts, excerptExtract, findAliases, twistCount } from "@/server/research/extract";
+import { detectConflicts, excerptExtract, findAliases, somersaultCount, twistCount } from "@/server/research/extract";
 import { FetchBlockedError, assertFetchable, htmlToText, parseRobots } from "@/server/research/fetcher";
 import { getDraft, listDrafts, reviewDraft, submitSuggestion } from "@/server/research/drafts";
 import { findGaps, requestResearch } from "@/server/research/pipeline";
@@ -53,6 +53,26 @@ describe("extraction", () => {
     ]);
     expect(conflict.conflicting).toBe(true);
     expect(detectConflicts([{ statement: "It has one twist.", sourceRefs: [] }]).conflicting).toBe(false);
+  });
+
+  it("parses somersault counts and flags rotation conflicts", () => {
+    expect(somersaultCount("A cody is a one and one quarter back somersault from front landing")).toBe(1.25);
+    expect(somersaultCount("a barani is a front somersault with a half twist")).toBe(1);
+    expect(somersaultCount("a double back somersault with three full twists")).toBe(2);
+    expect(somersaultCount("Three quarter straight back somersault that lands in front drop position")).toBe(0.75);
+    expect(somersaultCount("any triple somersault combined with a component of twist")).toBe(3);
+    expect(somersaultCount("1¼ front somersault landing on the feet")).toBe(1.25);
+    expect(somersaultCount("It lands on the feet.")).toBeNull();
+    const c = detectConflicts([
+      { statement: "A kaboom is a three quarter back somersault from the back.", sourceRefs: [{ sourceId: "a", excerpt: "", stance: "supports" }] },
+      { statement: "A kaboom is a one and a quarter back somersault from the back.", sourceRefs: [{ sourceId: "b", excerpt: "", stance: "supports" }] },
+    ]);
+    expect(c.conflicting).toBe(true);
+    expect(c.questions[0]).toMatch(/somersaults/);
+    expect(detectConflicts([
+      { statement: "A barani is a front somersault with a half twist.", sourceRefs: [] },
+      { statement: "The barani: a single forward somersault with a half twist.", sourceRefs: [] },
+    ]).conflicting).toBe(false);
   });
 });
 

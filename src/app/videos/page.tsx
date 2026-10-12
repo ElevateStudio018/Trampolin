@@ -6,6 +6,15 @@ import { listMyVideos, listSharedVideos } from "@/server/video/service";
 
 export const metadata: Metadata = { title: "Videos" };
 
+function Poster({ id, has, title }: { id: string; has: boolean; title: string }) {
+  return has ? (
+    // eslint-disable-next-line @next/next/no-img-element -- private, auth-checked image; next/image would bypass the cookie check
+    <img src={`/api/videos/${id}/poster`} alt={`Frame from ${title}`} loading="lazy" className="aspect-video w-full rounded-[var(--radius-control)] bg-surface-2 object-cover" />
+  ) : (
+    <div aria-hidden className="grid aspect-video w-full place-items-center rounded-[var(--radius-control)] bg-surface-2 text-2xl text-muted">▶</div>
+  );
+}
+
 function duration(ms: number | null) {
   if (!ms) return null;
   const s = Math.round(ms / 1000);
@@ -35,7 +44,8 @@ export default async function VideosPage() {
               {mine.map(({ video: v, entryName }) => (
                 <li key={v.id}>
                   <Link href={`/videos/${v.id}`} className="block h-full">
-                    <Card className="flex h-full flex-col gap-2 p-4 hover:border-line-strong">
+                    <Card className="flex h-full flex-col gap-2 p-3 hover:border-line-strong">
+                      <Poster id={v.id} has={!!v.posterKey} title={v.title} />
                       <div className="flex items-start justify-between gap-2">
                         <span className="font-medium">{v.title}</span>
                         <StatusBadge status={v.status} />
@@ -66,7 +76,8 @@ export default async function VideosPage() {
             {shared.map((v) => (
               <li key={v.id}>
                 <Link href={`/videos/${v.id}`} className="block h-full">
-                  <Card className="h-full p-4 hover:border-line-strong">
+                  <Card className="flex h-full flex-col gap-2 p-3 hover:border-line-strong">
+                    <Poster id={v.id} has={v.hasPoster} title={v.title} />
                     <p className="font-medium">{v.title}</p>
                     <p className="text-xs text-muted">
                       @{v.ownerHandle} · {formatDate(v.createdAt)}

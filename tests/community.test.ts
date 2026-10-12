@@ -81,6 +81,10 @@ describe("bookmarks and admin user management", () => {
     const target = await makeUser();
     await expect(setUserRole(reviewer, target.id, "admin")).rejects.toBeInstanceOf(ForbiddenError);
     await expect(setUserRole(admin, admin.id, "member")).rejects.toThrow(/own role/);
+    // Handles contain underscores; search must treat them literally.
+    const { listUsers } = await import("@/server/community/service");
+    expect((await listUsers(admin, target.handle)).map((u) => u.id)).toEqual([target.id]);
+    expect(await listUsers(admin, "%")).toEqual([]);
     await setUserRole(admin, target.id, "reviewer");
     await setSuspended(admin, target.id, true);
     expect(await authenticate(target.email, target.password)).toBeNull();

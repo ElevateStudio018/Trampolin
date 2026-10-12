@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { videoAnalyses, videos } from "@/db/schema";
 import { appendLog, finishJob, line, type JobRow } from "@/server/jobs/queue";
 import { storage } from "@/server/storage";
-import { analyzerById, ffprobe } from "./analyzers";
+import { analyzerById, extractPoster, ffprobe } from "./analyzers";
 
 /** Validates the stored file with ffprobe and records technical metadata. */
 export async function runVideoProbe(job: JobRow) {
@@ -12,9 +12,19 @@ export async function runVideoProbe(job: JobRow) {
   if (!v) return finishJob(job.id, "succeeded", { skipped: "video deleted" });
   try {
     const p = await ffprobe(storage().pathFor(v.storageKey));
+    // The poster is a convenience: failing to extract one doesn't fail the video.
+    let posterKey: string | null = null;
+    try {
+      const key = `${v.storageKey}.poster.jpg`;
+      const at = p.durationMs ? Math.min(1, p.durationMs / 2000) : 0;
+      await extractPoster(storage().pathFor(v.storageKey), storage().pathFor(key), at);
+      posterKey = key;
+    } catch (err) {
+      await appendLog(job.id, [line("warn", `No poster image: ${err instanceof Error ? err.message : err}`)]);
+    }
     await db
       .update(videos)
-      .set({ status: "ready", statusMessage: "", durationMs: p.durationMs, width: p.width, height: p.height, frameRate: p.frameRate, codec: p.codec })
+      .set({ status: "ready", statusMessage: "", durationMs: p.durationMs, width: p.width, height: p.height, frameRate: p.frameRate, codec: p.codec, posterKey })
       .where(eq(videos.id, videoId));
     await appendLog(job.id, [line("info", `Probed: ${p.width}x${p.height}, ${p.durationMs} ms, ${p.codec}`)]);
     await finishJob(job.id, "succeeded", p);

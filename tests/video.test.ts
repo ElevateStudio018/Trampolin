@@ -54,6 +54,10 @@ describe("video upload", () => {
     expect(got!.video.durationMs).toBeGreaterThan(900);
     expect(got!.video.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(existsSync(storage().pathFor(got!.video.storageKey))).toBe(true);
+    // A poster frame was extracted as a real JPEG.
+    expect(got!.video.posterKey).toBeTruthy();
+    const jpeg = readFileSync(storage().pathFor(got!.video.posterKey!));
+    expect([jpeg[0], jpeg[1]]).toEqual([0xff, 0xd8]);
   });
 
   it("rejects non-video files and leaves nothing behind", async () => {
@@ -104,8 +108,11 @@ describe("video access control", () => {
     const owner = await makeUser();
     const v = await upload(owner);
     const p = storage().pathFor(v.storageKey);
+    const poster = storage().pathFor((await getVideo(owner, v.id))!.video.posterKey!);
+    expect(existsSync(poster)).toBe(true);
     await deleteVideo(owner, v.id);
     expect(existsSync(p)).toBe(false);
+    expect(existsSync(poster)).toBe(false);
     expect(await getVideo(owner, v.id)).toBeNull();
   });
 });

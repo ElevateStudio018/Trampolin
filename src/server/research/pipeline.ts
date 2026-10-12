@@ -208,7 +208,7 @@ export async function runEntryResearch(job: JobRow) {
         canonicalName: p.topic,
         summary: extracted.summary,
         aliases: extracted.aliasesFound.filter((a) => !aliases.some((x) => normalizeName(x) === normalizeName(a))),
-        claims: extracted.claims.map((c) => (conflicts.conflicting && c.flag !== "unsupported" && /twist/i.test(c.statement) ? { ...c, flag: "conflict" as const } : c)),
+        claims: extracted.claims.map((c) => (conflicts.conflicting && c.flag !== "unsupported" && /twist|somersault|salto|flip/i.test(c.statement) ? { ...c, flag: "conflict" as const } : c)),
         unresolvedQuestions: [...extracted.unresolvedQuestions, ...conflicts.questions],
         extractor: extracted.extractor,
       },

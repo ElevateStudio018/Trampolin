@@ -73,17 +73,48 @@ export function twistCount(sentence: string): number | null {
   return parseAmount(m[1]!);
 }
 
-export function detectConflicts(claims: DraftClaim[]): { conflicting: boolean; questions: string[] } {
-  const counts = new Map<number, string[]>();
+const SOMERSAULT_AMOUNTS: [RegExp, number][] = [
+  [/^(?:one and (?:a|one) quarter|1\s*¼|1 1\/4|1\.25)$/i, 1.25],
+  [/^(?:one and (?:a )?half|1\s*½|1 1\/2|1\.5)$/i, 1.5],
+  [/^(?:one and three quarters?|1\s*¾|1 3\/4|1\.75)$/i, 1.75],
+  [/^(?:three[- ]quarters?|¾|3\/4|0\.75)$/i, 0.75],
+  [/^(?:a quarter|quarter|¼|1\/4)$/i, 0.25],
+  [/^(?:a half|half|½|1\/2)$/i, 0.5],
+  [/^(?:a|an|one|single|1)$/i, 1],
+  [/^(?:two|double|2)$/i, 2],
+  [/^(?:three|triple|3)$/i, 3],
+  [/^(?:four|quadruple|4)$/i, 4],
+];
+
+/** Extracts the number of somersaults a sentence attributes to a skill, e.g. "a one and a quarter back somersault" -> 1.25. */
+export function somersaultCount(sentence: string): number | null {
+  const m = sentence.match(
+    /\b(one and (?:a|one) quarter|one and (?:a )?half|one and three quarters?|three[- ]quarters?|a quarter|a half|half|quarter|1\s*[¼½¾]|1 [13]\/4|1 1\/2|[¼½¾]|[13]\/4|1\/2|\d+(?:\.\d+)?|an?|one|two|three|four|single|double|triple|quadruple)[\s-]+(?:(?:straight|tucked|piked|front|forward|back|backward)\s+)*(?:somersaults?|saltos?|flips?)\b/i,
+  );
+  if (!m) return null;
+  const raw = m[1]!.replace(/\s+/g, " ").trim();
+  for (const [re, n] of SOMERSAULT_AMOUNTS) if (re.test(raw)) return n;
+  return null;
+}
+
+function compareQuantity(claims: DraftClaim[], read: (s: string) => number | null, unit: string): string | null {
+  const counts = new Map<number, Set<string>>();
   for (const c of claims) {
-    const n = twistCount(c.statement);
+    const n = read(c.statement);
     if (n === null) continue;
-    const sources = c.sourceRefs.map((r) => r.sourceId);
-    counts.set(n, [...(counts.get(n) ?? []), ...sources]);
+    const set = counts.get(n) ?? new Set<string>();
+    for (const r of c.sourceRefs) set.add(r.sourceId);
+    counts.set(n, set);
   }
-  if (counts.size <= 1) return { conflicting: false, questions: [] };
-  const desc = [...counts.entries()].map(([n, s]) => `${n} twist${n === 1 ? "" : "s"} (${new Set(s).size} source${new Set(s).size === 1 ? "" : "s"})`).join(" vs ");
-  return { conflicting: true, questions: [`Sources disagree on the amount of twist: ${desc}. Check a primary source before approving.`] };
+  if (counts.size <= 1) return null;
+  const desc = [...counts.entries()].map(([n, s]) => `${n} ${unit}${n === 1 ? "" : "s"} (${s.size} source${s.size === 1 ? "" : "s"})`).join(" vs ");
+  return `Sources disagree on the number of ${unit}s: ${desc}. Check a primary source before approving.`;
+}
+
+/** Flags drafts whose claims attribute different twist or somersault counts to the same skill. */
+export function detectConflicts(claims: DraftClaim[]): { conflicting: boolean; questions: string[] } {
+  const questions = [compareQuantity(claims, twistCount, "twist"), compareQuantity(claims, somersaultCount, "somersault")].filter((q): q is string => q !== null);
+  return { conflicting: questions.length > 0, questions };
 }
 
 // ---------------------------------------------------------------------------

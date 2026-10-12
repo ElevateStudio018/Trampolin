@@ -64,3 +64,8 @@ export function hostnameOf(url: string): string {
     return url;
   }
 }
+
+/** Escapes LIKE/ILIKE wildcards so user input matches literally (Postgres default escape is backslash). */
+export function escapeLike(input: string): string {
+  return input.replace(/[\\%_]/g, (c) => `\\${c}`);
+}

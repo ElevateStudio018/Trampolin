@@ -35,7 +35,7 @@ e2e/              Playwright end-to-end and visual tests against a production bu
 | Claims as first-class rows (`claims` ↔ `claim_sources` ↔ `sources`) | Each statement carries its own citations, stance (supports / contradicts / context) and excerpt. Evidence can be inspected per statement, and the assistant cites claims rather than whole pages. |
 | Evidence status on entries + status on claims | Separates "how trustworthy is this entry overall" from "how well supported is this statement". Conflicts stay visible instead of being averaged away. |
 | Aliases globally unique (normalised) | One spelling maps to one entry, which prevents silent duplicates and enables `/tricks/<alias>` redirects. |
-| Optimistic concurrency (`revision`) + full snapshot per revision | Concurrent reviewer edits fail loudly instead of overwriting each other, and history is auditable. |
+| Optimistic concurrency on `content_version`, history in `revision` + full snapshot per revision | Concurrent text edits fail loudly instead of overwriting each other. Adding claims or changing state only bumps the history counter, so an open edit form stays valid. History is auditable. |
 | Custom session auth (scrypt, opaque token, only SHA-256 stored) | No third-party dependency, works offline, tokens are useless if the DB leaks. |
 | Postgres job queue with partial unique index on `dedupe_key` | Idempotent enqueueing (double clicks and scheduler ticks share a job), multiple workers via `FOR UPDATE SKIP LOCKED`, no Redis. |
 | Research output only as *drafts* | Approval is the single path into the Trick Book. It imports only the claims a reviewer ticks that have a supporting source. Approval does not publish unless the reviewer asks for it. |
@@ -63,11 +63,11 @@ Schema: `src/db/schema.ts`. Migrations: `drizzle/`.
 
 **Search / entry page.** Visitor → `searchEntries` (published only unless a reviewer asks for drafts) → FTS + trigram ranking → cards. The entry page loads claims → citations → sources and shows excerpts and retrieval method.
 
-**Research.** Gap scan (daily via worker, or manual) ranks weak entries → `research.entry` jobs → candidate URLs (reviewer-supplied first, then the search API if configured) → `fetchDocument` (https only, DNS-resolved private IPs refused, robots.txt, 12 s timeout, 2 MB cap, redirects re-validated) or reviewer-pasted text → sources upserted → extraction (LLM with quote validation, else excerpt extraction) → duplicate check against all names and aliases → conflict check (differing twist counts) → draft with status → reviewer decision → claims applied transactionally with a new revision.
+**Research.** Gap scan (daily via worker, or manual) ranks weak entries → `research.entry` jobs → candidate URLs (reviewer-supplied first, then the search API if configured) → `fetchDocument` (https only, DNS-resolved private IPs refused, robots.txt, 12 s timeout, 2 MB cap, redirects re-validated) or reviewer-pasted text → sources upserted → extraction (LLM with quote validation, else excerpt extraction) → duplicate check against all names and aliases → conflict check (differing twist or somersault counts) → draft with status → reviewer decision → claims applied transactionally with a new revision.
 
 **Assistant.** Signed-in user → rate limit → safety classifier (instructions / readiness) → retrieval (name/alias mention, then FTS OR-query) → if nothing matches, "no match" with no model call → else the model gets the records with claim keys `C1..Cn` → output validation (unknown keys stripped; paragraphs without valid keys dropped) → stored in the user's history. On any model failure, or without a key: retrieval-only answer from the stored claims.
 
-**Video.** Browser `POST /api/videos` (same-origin check) → streamed to storage while hashing and size-checking, magic-byte sniff → row with status `processing` → `video.probe` job (ffprobe) → `ready` or `failed` with a message. Playback goes through `/api/videos/:id/stream`, which runs the same visibility check as the page and supports HTTP ranges. Files are never served from a public path.
+**Video.** Browser `POST /api/videos` (same-origin check) → streamed to storage while hashing and size-checking, magic-byte sniff → row with status `processing` → `video.probe` job (ffprobe + a poster frame via ffmpeg) → `ready` or `failed` with a message. Playback goes through `/api/videos/:id/stream`, which runs the same visibility check as the page and supports HTTP ranges. Files are never served from a public path.
 
 ## External services and what crosses the boundary
 
@@ -86,5 +86,7 @@ Schema: `src/db/schema.ts`. Migrations: `drizzle/`.
 - Input validation with zod on every write. React escaping everywhere (no raw HTML rendering). Source URLs are restricted to http(s).
 - Rate limits in Postgres: sign-in (per IP and per email), sign-up, posting, comments, reports, uploads, analysis, assistant and suggestions.
 - SSRF guard and robots.txt in the research fetcher. Upload type sniffing and size limit while streaming. Storage keys are generated server-side and validated against traversal.
-- Security headers: `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`.
+- Security headers: `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, and a per-request nonce-based `Content-Security-Policy` from `src/proxy.ts` (scripts: `'self' 'nonce-…' 'strict-dynamic'`; `frame-ancestors 'none'`; `form-action 'self'`).
+- Password change re-checks the current password and revokes all other sessions.
+- `LIKE` searches escape `%`, `_` and `\` in user input.
 - No secrets in client bundles; `src/lib/env.ts` is only imported by server modules.
