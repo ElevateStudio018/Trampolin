@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ALL_SPECS, COMBOS, SKILL_SPECS } from "@/animation/catalog";
+import { ALL_SPECS, COMBOS, EXTRA_SPECS, SKILL_SPECS } from "@/animation/catalog";
 import { forwardKinematics, inertiaAbout, massProperties, orientPoint } from "@/animation/body";
 import { buildSequence, buildTimeline, G, isConsistent, parseFig, POSE_ANGLE, type Frame, type SkillSpec } from "@/animation/motion";
 import { seedEntries } from "@/db/seed-data";
@@ -24,6 +24,28 @@ describe("skill catalog", () => {
       if (!spec) continue;
       if (e.quarterRotations !== undefined && spec.kind !== "jump") expect(spec.quarters, e.name).toBe(e.quarterRotations);
       if (e.halfTwists !== undefined) expect(spec.twists.reduce((a, b) => a + b, 0), e.name).toBe(e.halfTwists);
+    }
+  });
+
+  it("gives the extra studio skills FIG notation that matches their data", () => {
+    for (const spec of Object.values(EXTRA_SPECS)) {
+      expect(spec.note, spec.id).toMatch(/Not a Trick Book entry/);
+      if (spec.kind !== "rotation" || spec.quarters < 4) continue;
+      expect(spec.fig, spec.id).toBeTruthy();
+      const parsed = parseFig(spec.fig!, spec.direction) as SkillSpec;
+      expect(parsed, spec.id).toMatchObject({ quarters: spec.quarters, twists: spec.twists, shape: spec.shape, end: spec.end });
+    }
+  });
+
+  it("holds the tuck through a double: the body stays compact between the somersaults", () => {
+    for (const id of ["double-back-tuck", "triple-back", "full-in-full-out"]) {
+      const tl = buildTimeline(ALL_SPECS[id]!);
+      const somersaults = tl.phases.filter((p) => /somersault/.test(p.title) && !/Take-off|Landing/.test(p.title));
+      for (let i = 1; i < somersaults.length; i++) {
+        const t = somersaults[i]!.start;
+        const f = tl.sample(t);
+        expect(f.joints.knee, `${id} between somersaults ${i} and ${i + 1}`).toBeGreaterThan(1.6);
+      }
     }
   });
 
@@ -168,6 +190,10 @@ describe("FIG notation and sequences", () => {
     expect(parseFig("800ο", -1)).toMatchObject({ twists: [0, 0], shape: "tuck" });
     expect(parseFig("3", -1)).toMatchObject({ end: "front" });
     expect(parseFig("82/", 1)).toHaveProperty("error");
+    expect(parseFig("12001o", 1)).toMatchObject({ quarters: 12, twists: [0, 0, 1], shape: "tuck", end: "feet" });
+    expect(parseFig("12000<", -1)).toMatchObject({ quarters: 12, twists: [0, 0, 0], shape: "pike" });
+    expect(parseFig("46/", -1)).toMatchObject({ quarters: 4, twists: [6] });
+    expect(parseFig("8000", -1)).toMatchObject({ quarters: 8, twists: [0, 0], shape: "tuck" });
     expect(parseFig("abc", 1)).toHaveProperty("error");
   });
 

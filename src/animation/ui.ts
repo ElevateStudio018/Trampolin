@@ -1,4 +1,4 @@
-import { ALL_SPECS, COMBOS, SKILL_SPECS } from "./catalog";
+import { ALL_SPECS, COMBOS, EXTRA_SPECS, SKILL_SPECS } from "./catalog";
 import { buildSequence, buildTimeline, parseFig, type SkillSpec, type Timeline } from "./motion";
 import { SkillPlayer, type CameraPreset } from "./player";
 
@@ -29,7 +29,7 @@ export function mountAnimator(host: HTMLElement, tl: Timeline, note?: string): A
     </div>
     <div class="anim-options">
       <label>Speed <select class="anim-speed"><option value="0.25">¼×</option><option value="0.5">½×</option><option value="1" selected>1×</option></select></label>
-      <label>Camera <select class="anim-cam"><option value="side">Side (follow)</option><option value="wide">Side (whole bed)</option><option value="front">Front</option><option value="three-quarter">¾ view</option></select></label>
+      <label>Camera <select class="anim-cam"><option value="phone" selected>Phone (spectator)</option><option value="side">Side (follow)</option><option value="wide">Side (whole bed)</option><option value="front">Front</option><option value="three-quarter">¾ view</option></select></label>
       <label class="anim-check"><input type="checkbox" class="anim-trail" checked /> Path</label>
       <button type="button" class="anim-btn anim-rec">Save video</button>
       <span class="anim-rec-status" role="status"></span>
@@ -175,6 +175,7 @@ export function mountEntryAnimation(host: HTMLElement, slug: string): Animator |
  */
 export function mountStudio(host: HTMLElement, opts: { linkFor?: (slug: string) => string } = {}): Animator {
   const skills = Object.entries(SKILL_SPECS);
+  const studioSpecs = { ...SKILL_SPECS, ...EXTRA_SPECS };
   const combo: string[] = [];
   host.innerHTML = `
     <div class="anim-studio">
@@ -185,7 +186,12 @@ export function mountStudio(host: HTMLElement, opts: { linkFor?: (slug: string) 
       </div>
       <div class="anim-panel" data-panel="skill">
         <label for="anim-skill">Skill</label>
-        <select id="anim-skill">${skills.map(([slug, s]) => `<option value="${slug}">${esc(s.name)}</option>`).join("")}</select>
+        <select id="anim-skill">
+          <optgroup label="Trick Book skills (with sources)">${skills.map(([slug, s]) => `<option value="${slug}">${esc(s.name)}</option>`).join("")}</optgroup>
+          <optgroup label="More skills (animation only)">${Object.entries(EXTRA_SPECS)
+            .map(([slug, s]) => `<option value="${slug}">${esc(s.name)}${s.fig ? ` · ${esc(s.fig)}` : ""}</option>`)
+            .join("")}</optgroup>
+        </select>
         <span class="anim-link"></span>
       </div>
       <div class="anim-panel" data-panel="fig" hidden>
@@ -197,7 +203,7 @@ export function mountStudio(host: HTMLElement, opts: { linkFor?: (slug: string) 
           <button type="submit" class="anim-btn">Animate</button>
         </form>
         <p class="anim-help">Quarter rotations, then half twists per somersault, then <code>/</code> straight, <code>&lt;</code> pike or <code>o</code> tuck. Examples:
-          ${["41/", "43/", "800o", "801o", "822o", "824/", "811<"].map((n) => `<button type="button" class="anim-chip" data-fig="${n}">${n}</button>`).join(" ")}</p>
+          ${["41/", "43/", "800o", "801o", "822o", "824/", "811<", "12001o"].map((n) => `<button type="button" class="anim-chip" data-fig="${n}">${n}</button>`).join(" ")}</p>
         <p class="anim-error" role="alert"></p>
       </div>
       <div class="anim-panel" data-panel="combo" hidden>
@@ -220,10 +226,10 @@ export function mountStudio(host: HTMLElement, opts: { linkFor?: (slug: string) 
   const linkEl = q<HTMLSpanElement>(".anim-link");
 
   const showSkill = () => {
-    const spec = SKILL_SPECS[skillSel.value];
+    const spec = studioSpecs[skillSel.value];
     if (!spec) return;
-    animator.setTimeline(buildTimeline(spec));
-    linkEl.innerHTML = opts.linkFor ? `<a href="${opts.linkFor(skillSel.value)}">Read the sources for ${esc(spec.name)} →</a>` : "";
+    animator.setTimeline(buildTimeline(spec), spec.fig ? `FIG ${spec.fig}. ${spec.note ?? ""}` : undefined);
+    linkEl.innerHTML = opts.linkFor && SKILL_SPECS[skillSel.value] ? `<a href="${opts.linkFor(skillSel.value)}">Read the sources for ${esc(spec.name)} →</a>` : "";
   };
   skillSel.onchange = showSkill;
   showSkill();
@@ -250,7 +256,7 @@ export function mountStudio(host: HTMLElement, opts: { linkFor?: (slug: string) 
       return;
     }
     figErr.textContent = "";
-    const shapeNote = spec.twists.some((t) => t > 0) ? "Twists are shown with the body opened from the shape, which is how twisting doubles are commonly drawn." : "";
+    const shapeNote = spec.twists.some((t) => t > 0) && spec.quarters > 4 ? "The shape is held through the somersaults; a twist in the first somersault comes early, before the shape closes, and a twist in the last comes as it opens." : "";
     animator.setTimeline(buildTimeline(spec), `Notation ${figInput.value.trim()}: ${spec.quarters} quarter rotations, half twists per somersault ${spec.twists.join("-")}, ${spec.shape}. ${shapeNote}`);
   };
   q<HTMLFormElement>(".anim-fig").onsubmit = (e) => {

@@ -37,6 +37,8 @@ export type SkillSpec = {
   shape: Shape;
   kind: "jump" | "rotation" | "seat-twist";
   twistTiming?: "middle" | "late";
+  /** FIG numeric notation, when the skill has a standard one. */
+  fig?: string;
   note?: string;
 };
 
@@ -147,15 +149,25 @@ export function isConsistent(spec: SkillSpec): boolean {
 /** FIG notation: quarter rotations, half twists per somersault, then / < or o. */
 export function parseFig(raw: string, direction: 1 | -1): SkillSpec | { error: string } {
   const s = raw.trim().replace(/ο/g, "o").replace(/\s+/g, "");
-  const m = /^([1-9])(\d*)([o0<\/]?)$/i.exec(s);
-  if (!m) return { error: "Use FIG notation such as 41/, 800o or 822<: quarter rotations, then half twists per somersault, then / < or o." };
-  const quarters = Number(m[1]);
+  const m = /^([1-9]\d*)([o<\/]?)$/i.exec(s.replace(/0$/, "o")); // a trailing 0 is the tuck symbol written as a digit
+  if (!m) return { error: "Use FIG notation such as 41/, 800o or 12001o: quarter rotations, then half twists per somersault, then / < or o." };
+  // Quarters are one digit, or two for triples and beyond (12001o = 12 quarters, then 0-0-1).
+  const body = m[1]!;
+  const options = [2, 1]
+    .filter((len) => body.length >= len)
+    .map((len) => ({ quarters: Number(body.slice(0, len)), digits: body.slice(len) }))
+    .filter(({ quarters }) => quarters >= 1 && quarters <= 16);
+  const split = options.find((o) => o.digits.length > 0 && o.digits.length === somersaultCount(o.quarters)) ?? options.find((o) => o.digits.length === 0);
+  if (!split) {
+    const q1 = Number(body[0]);
+    const n1 = somersaultCount(q1);
+    return { error: `${q1} quarter rotations make ${n1} somersault${n1 > 1 ? "s" : ""}, so give ${n1} twist digit${n1 > 1 ? "s" : ""}.` };
+  }
+  const quarters = split.quarters;
   const n = somersaultCount(quarters);
-  const digits = m[2]!.split("").map(Number);
-  const twists = digits.length === 0 ? Array(n).fill(0) : digits;
-  if (twists.length !== n) return { error: `${quarters} quarter rotations make ${n} somersault${n > 1 ? "s" : ""}, so give ${n} twist digit${n > 1 ? "s" : ""}.` };
-  const sym = m[3]!.toLowerCase();
-  const shape: Shape = sym === "/" ? "straight" : sym === "<" ? "pike" : sym === "o" || sym === "0" ? "tuck" : twists.some((t) => t > 0) ? "straight" : "tuck";
+  const twists = split.digits.length === 0 ? Array(n).fill(0) : split.digits.split("").map(Number);
+  const sym = m[2]!.toLowerCase();
+  const shape: Shape = sym === "/" ? "straight" : sym === "<" ? "pike" : sym === "o" ? "tuck" : twists.some((t) => t > 0) ? "straight" : "tuck";
   const endAngle = mod2pi(direction * quarters * HALF_PI);
   const end: Pose = endAngle < 0.01 ? "feet" : Math.abs(endAngle - HALF_PI) < 0.01 ? "front" : "back";
   return { id: `fig-${s}-${direction > 0 ? "f" : "b"}`, name: `${s} ${direction > 0 ? "forward" : "backward"}`, start: "feet", end, direction, quarters, twists, shape, kind: "rotation" };
@@ -242,19 +254,34 @@ function buildPart(spec: SkillSpec, opts: PartOpts): Part {
   const segA = 0.1;
   const segB = 0.88;
   const seg = (i: number) => [segA + ((segB - segA) * i) / n, segA + ((segB - segA) * (i + 1)) / n] as const;
-  const twistWindow = (i: number) => {
+  /**
+   * Where each somersault's twist happens. Real twisting multiples keep the shape through
+   * the somersaults and put the twist at the ends: a twist "in" starts from take-off and
+   * is finished before the shape closes, a twist "out" comes as the shape opens.
+   */
+  const roleOf = (i: number) => (n === 1 ? "only" : i === 0 ? "in" : i === n - 1 ? "out" : "mid");
+  const twistWindow = (i: number): readonly [number, number] => {
     const [a, b] = seg(i);
     const len = b - a;
-    return spec.twistTiming === "late" ? ([a + 0.55 * len, Math.min(0.97, b + 0.06)] as const) : ([a + 0.15 * len, a + 0.85 * len] as const);
+    if (spec.twistTiming === "late") return [a + 0.55 * len, Math.min(0.97, b + 0.06)];
+    const role = roleOf(i);
+    if (role === "in") return [0.03, a + 0.6 * len];
+    if (role === "out" || (role === "only" && spec.shape !== "straight" && spec.kind === "rotation")) return [a + 0.4 * len, Math.min(0.95, b + 0.04)];
+    return [a + 0.15 * len, a + 0.85 * len];
   };
   const shapeWeight = (u: number) => {
     if (spec.kind === "jump") return ramp(u, 0.25, 0.42) * (1 - ramp(u, 0.58, 0.75));
     if (spec.kind === "seat-twist" || spec.quarters <= 1 || spec.shape === "straight") return 0;
+    // The shape is held through every somersault and only opens for the landing.
     let w = ramp(u, 0.04, 0.16) * (1 - ramp(u, 0.8, 0.9));
     for (let i = 0; i < n; i++) {
       if (!spec.twists[i]) continue;
       const [a, b] = twistWindow(i);
-      w *= 1 - 0.75 * ramp(u, a - 0.06, a) * (1 - ramp(u, b, b + 0.06));
+      const role = spec.twistTiming === "late" ? "out" : roleOf(i);
+      // Twisting in a loose ("cat") shape: tucks once the twist in is done, opens as the twist out starts.
+      if (role === "in") w *= 0.3 + 0.7 * ramp(u, b - 0.05, b + 0.05);
+      else if (role === "out" || role === "only") w *= 1 - 0.7 * ramp(u, a - 0.06, a + 0.02);
+      else w *= 1 - 0.45 * ramp(u, a - 0.05, a) * (1 - ramp(u, b, b + 0.05));
     }
     return w;
   };
@@ -277,7 +304,7 @@ function buildPart(spec: SkillSpec, opts: PartOpts): Part {
     const open = spec.kind === "jump" ? P.straight : spec.twists.some((t) => t > 0) ? P.twist : P.straight;
     let j = spec.kind === "jump" ? mix(P.reach, shapePosture, shapeWeight(u)) : mix(mix(leave, open, ramp(u, 0, 0.12)), shapePosture, shapeWeight(u));
     if (spec.shape === "straight" || spec.kind === "jump") j = mix(j, P.twist, armsIn(u));
-    if (spec.quarters <= 1 && spec.kind === "rotation") j = mix(mix(leave, P.straight, ramp(u, 0, 0.3)), landTarget, ramp(u, 0.35, 0.95));
+    if (spec.quarters <= 1 && spec.kind === "rotation") j = mix(mix(mix(leave, P.straight, ramp(u, 0, 0.3)), P.twist, 0.6 * armsIn(u) * ramp(u, 0.2, 0.35)), landTarget, ramp(u, 0.35, 0.95));
     return mix(j, landTarget, ramp(u, 0.86, 1));
   };
 
@@ -405,7 +432,13 @@ function buildPart(spec: SkillSpec, opts: PartOpts): Part {
     detail: `The bed springs back and leaves the athlete${lying ? ` from the ${POSE_WORD[spec.start]}` : ""} at ${mps(vOut)} upwards${spec.quarters ? ", with the rotation already started" : ""}.`,
   });
   const ft = (u: number) => tTo + u * T;
-  if (spec.kind === "jump") {
+  const allHalf = spec.twists.reduce((a, b) => a + b, 0);
+  if (spec.kind === "jump" && allHalf > 0) {
+    const tw = twistWindow(0);
+    phases.push({ start: tTo, end: ft(tw[0]), title: "Rise", detail: "Straight body on the way up; gravity slows the rise." });
+    phases.push({ start: ft(tw[0]), end: ft(tw[1]), title: twistWords(allHalf)[0]!.toUpperCase() + twistWords(allHalf).slice(1), detail: `Turns a ${twistWords(allHalf)} about the long axis around the top of the jump; arms in make the twist faster.` });
+    phases.push({ start: ft(tw[1]), end: tTd2, title: "Descent", detail: "Straight body falling back to the bed." });
+  } else if (spec.kind === "jump") {
     phases.push({ start: tTo, end: ft(0.3), title: "Rise", detail: "Straight body on the way up; gravity slows the rise." });
     phases.push({ start: ft(0.3), end: ft(0.72), title: `${spec.shape[0]!.toUpperCase()}${spec.shape.slice(1)} shape`, detail: `Shows the ${spec.shape} shape around the top of the jump.` });
     phases.push({ start: ft(0.72), end: tTd2, title: "Descent", detail: "Opens to a straight body while falling back to the bed." });
@@ -415,8 +448,8 @@ function buildPart(spec: SkillSpec, opts: PartOpts): Part {
     phases.push({
       start: tTo,
       end: tTd2,
-      title: spec.quarters === 0 ? "Drop" : `¼ ${spec.direction > 0 ? "forward" : "backward"} rotation`,
-      detail: spec.quarters === 0 ? `Moves from ${POSE_WORD[spec.start]} towards a ${POSE_WORD[spec.end]} landing.` : `Turns a quarter somersault to land on the ${POSE_WORD[spec.end]}.`,
+      title: spec.quarters === 0 ? (allHalf ? `Drop · ${twistWords(allHalf)}` : "Drop") : `¼ ${spec.direction > 0 ? "forward" : "backward"} rotation`,
+      detail: `${spec.quarters === 0 ? `Moves from ${POSE_WORD[spec.start]} towards a ${POSE_WORD[spec.end]} landing` : `Turns a quarter somersault to land on the ${POSE_WORD[spec.end]}`}${allHalf ? `, with a ${twistWords(allHalf)}` : ""}.`,
     });
   } else if (spec.quarters % 4 !== 0 || n === 1) {
     const h = spec.twists.reduce((a, b) => a + b, 0);
@@ -436,8 +469,8 @@ function buildPart(spec: SkillSpec, opts: PartOpts): Part {
         end: ft(b),
         title: `${ord} somersault${h ? ` · ${twistWords(h)}` : ""}`,
         detail: h
-          ? `Twists ${twistWords(h)} about the long axis while ${spec.direction > 0 ? "rotating forward" : "rotating backward"}${n > 1 ? (i === 0 ? ` (the twist "in")` : i === n - 1 ? ` (the twist "out")` : "") : ""}; arms in make the twist faster.`
-          : `${spec.shape === "straight" ? "Straight" : `${spec.shape[0]!.toUpperCase()}${spec.shape.slice(1)}`} rotation without twist${spec.shape !== "straight" ? "; the compact shape has a low moment of inertia, so it spins faster" : ""}.`,
+          ? `Twists ${twistWords(h)} about the long axis while ${spec.direction > 0 ? "rotating forward" : "rotating backward"}${n > 1 ? (i === 0 ? ` (the twist "in"), early, before the ${spec.shape} closes` : i === n - 1 ? ` (the twist "out"), as the ${spec.shape === "straight" ? "body" : spec.shape} opens` : "") : ""}; arms in make the twist faster.`
+          : `${spec.shape === "straight" ? "Straight" : `${spec.shape[0]!.toUpperCase()}${spec.shape.slice(1)}`} rotation without twist${spec.shape !== "straight" ? `; the ${spec.shape} is held${n > 1 ? " without opening between somersaults" : ""} and its low moment of inertia makes it spin faster` : ""}.`,
       });
     }
   }

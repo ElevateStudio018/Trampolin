@@ -8,7 +8,7 @@ import type { Frame, Timeline } from "./motion";
  * trampoline. Framework-agnostic so the Next.js app and the static demo share it.
  */
 
-export type CameraPreset = "side" | "wide" | "front" | "three-quarter";
+export type CameraPreset = "phone" | "side" | "wide" | "front" | "three-quarter";
 
 export type PlayerOptions = {
   onTime?: (t: number, frame: Frame) => void;
@@ -26,6 +26,97 @@ const FRAME_WID = 2.91;
 const BED_Y = 1.155;
 
 type Limb = { joint: THREE.Group };
+
+
+const HALL = { w: 34, d: 40, h: 13 };
+
+function canvasTexture(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void, repeat?: [number, number]) {
+  const cv = document.createElement("canvas");
+  cv.width = w;
+  cv.height = h;
+  const g = cv.getContext("2d");
+  if (!g) return null;
+  draw(g);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  if (repeat) {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(...repeat);
+  }
+  return tex;
+}
+
+/** Light wooden sports floor with court lines. */
+function floorTexture() {
+  return canvasTexture(1024, 1024, (g) => {
+    const plank = 1024 / 16;
+    for (let i = 0; i < 16; i++) {
+      const tone = 196 + ((i * 37) % 23) - 11;
+      g.fillStyle = `rgb(${tone}, ${Math.round(tone * 0.78)}, ${Math.round(tone * 0.52)})`;
+      g.fillRect(0, i * plank, 1024, plank);
+      g.fillStyle = "rgba(90, 60, 30, 0.18)";
+      g.fillRect(0, i * plank, 1024, 1.5);
+      for (let k = 0; k < 3; k++) g.fillRect(((i * 211 + k * 347) % 1024), i * plank, 1.5, plank);
+    }
+    g.strokeStyle = "rgba(30, 80, 170, 0.85)";
+    g.lineWidth = 5;
+    g.strokeRect(120, 90, 784, 844);
+    g.beginPath();
+    g.moveTo(120, 512);
+    g.lineTo(904, 512);
+    g.stroke();
+    g.beginPath();
+    g.arc(512, 512, 90, 0, Math.PI * 2);
+    g.stroke();
+  });
+}
+
+/** Hall ceiling: dark roof with steel beams. */
+function ceilingTexture() {
+  return canvasTexture(
+    512,
+    512,
+    (g) => {
+      g.fillStyle = "#5d6168";
+      g.fillRect(0, 0, 512, 512);
+      g.fillStyle = "#43474d";
+      for (let x = 0; x < 512; x += 128) g.fillRect(x, 0, 14, 512);
+      g.fillStyle = "rgba(255,255,255,0.05)";
+      for (let y = 0; y < 512; y += 16) g.fillRect(0, y, 512, 2);
+    },
+    [3, 3],
+  );
+}
+
+/** Painted block wall: darker lower band, light upper wall. */
+function wallTexture() {
+  return canvasTexture(
+    512,
+    512,
+    (g) => {
+    g.fillStyle = "#ece9e2";
+    g.fillRect(0, 0, 512, 512);
+    g.fillStyle = "#7d8fa6";
+    g.fillRect(0, 430, 512, 82);
+    g.strokeStyle = "rgba(0,0,0,0.06)";
+    g.lineWidth = 2;
+    for (let y = 0; y < 512; y += 32) {
+      g.beginPath();
+      g.moveTo(0, y);
+      g.lineTo(512, y);
+      g.stroke();
+      for (let x = (y / 32) % 2 ? 0 : 32; x < 512; x += 64) {
+        g.beginPath();
+        g.moveTo(x, y);
+        g.lineTo(x, y + 32);
+        g.stroke();
+      }
+    }
+    },
+    [6, 1],
+  );
+}
 
 /** Bed markings drawn into the texture so they sink with the bed: the centre cross and the target zone. */
 function bedTexture(bed: string) {
@@ -74,7 +165,9 @@ export class SkillPlayer {
   private speed = 1;
   private last = 0;
   private raf = 0;
-  private preset: CameraPreset = "side";
+  private preset: CameraPreset = "phone";
+  private steady = typeof window !== "undefined" && (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
+  private aim = new THREE.Vector3(0, BED_Y + 1, 0);
   private showTrail = true;
   private resizeObserver: ResizeObserver;
   private opts: PlayerOptions;
@@ -93,8 +186,7 @@ export class SkillPlayer {
     this.canvas.setAttribute("role", "img");
     container.appendChild(this.canvas);
 
-    this.scene.background = new THREE.Color(c.floor).lerp(new THREE.Color("#ffffff"), 0.55);
-    this.scene.fog = new THREE.Fog(this.scene.background, 18, 40);
+    this.scene.background = new THREE.Color("#e9e6df");
 
     // Image-based lighting (a neutral studio room) plus a key light for shadows.
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -116,16 +208,23 @@ export class SkillPlayer {
     sun.shadow.camera.bottom = -4;
     this.scene.add(sun);
 
-    // Floor
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: c.floor, roughness: 1 }));
+    // Gym hall: sports floor, walls and ceiling lights, so the height of a bounce has a reference.
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(HALL.w, HALL.d), new THREE.MeshStandardMaterial({ map: floorTexture(), roughness: 0.55, metalness: 0 }));
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     this.scene.add(floor);
-    const grid = new THREE.GridHelper(40, 40, "#bdb8aa", "#cfcabd");
-    (grid.material as THREE.Material).transparent = true;
-    (grid.material as THREE.Material).opacity = 0.5;
-    grid.position.y = 0.002;
-    this.scene.add(grid);
+    const wallMat = new THREE.MeshStandardMaterial({ map: wallTexture(), roughness: 0.9, side: THREE.BackSide });
+    const hall = new THREE.Mesh(new THREE.BoxGeometry(HALL.w, HALL.h, HALL.d), [wallMat, wallMat, new THREE.MeshStandardMaterial({ map: ceilingTexture(), roughness: 1, side: THREE.BackSide }), new THREE.MeshBasicMaterial({ visible: false }), wallMat, wallMat]);
+    hall.position.y = HALL.h / 2 - 0.001;
+    hall.receiveShadow = true;
+    this.scene.add(hall);
+    const lampMat = new THREE.MeshStandardMaterial({ color: "#ffffff", emissive: "#fffaf0", emissiveIntensity: 1.6 });
+    for (let x = -1; x <= 1; x += 2)
+      for (let z = -2; z <= 2; z++) {
+        const lamp = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.06, 0.5), lampMat);
+        lamp.position.set(x * 6, HALL.h - 0.05, z * 5.5);
+        this.scene.add(lamp);
+      }
 
     // Trampoline: frame, pads, legs and a deformable bed. Long axis along z (travel direction).
     const frameMat = new THREE.MeshStandardMaterial({ color: c.frame, metalness: 0.4, roughness: 0.5 });
@@ -187,7 +286,7 @@ export class SkillPlayer {
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
     this.resize();
-    this.setCamera("side");
+    this.setCamera("phone");
   }
 
   private buildFigure(c: typeof DEFAULT_COLORS) {
@@ -448,7 +547,28 @@ export class SkillPlayer {
     this.camDist = snap ? desiredDist : this.camDist + (desiredDist - this.camDist) * 0.18;
     const y = this.camY;
     const d = this.camDist;
-    if (this.preset === "side") {
+    let fov = 38;
+    if (this.preset === "phone") {
+      // Zoomed so about 6 m of height is in view at the athlete's distance, like a phone held at 2–3×.
+      const dist = this.camera.position.distanceTo(this.aim);
+      fov = (2 * Math.atan(3.1 / Math.max(dist, 1)) * 180) / Math.PI;
+      if (!snap) fov = this.camera.fov + (fov - this.camera.fov) * 0.2;
+    }
+    if (Math.abs(this.camera.fov - fov) > 1e-3) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
+    if (this.preset === "phone") {
+      // A spectator filming with a phone beside the trampoline: fixed spot at eye height,
+      // panning after the athlete with a little lag and a slight hand-held sway.
+      const target = new THREE.Vector3(this.com.x, Math.max(BED_Y + 0.6, this.com.y - 0.1), this.com.z);
+      if (snap) this.aim.copy(target);
+      else this.aim.lerp(target, 0.22);
+      const t = this.time;
+      const sway = this.steady ? 0 : 1;
+      this.camera.position.set(9.2 + sway * 0.012 * Math.sin(t * 1.7), 1.6 + sway * 0.01 * Math.sin(t * 2.3 + 1), 4.8 + sway * 0.012 * Math.sin(t * 1.1 + 2));
+      this.camera.lookAt(this.aim.x + sway * 0.03 * Math.sin(t * 2.9), this.aim.y + sway * 0.025 * Math.sin(t * 3.7 + 0.5), this.aim.z);
+    } else if (this.preset === "side") {
       this.camera.position.set(d, y + 0.35, 0.3);
       this.camera.lookAt(0, y, 0);
     } else if (this.preset === "front") {

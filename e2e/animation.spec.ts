@@ -32,6 +32,7 @@ test("entries without a motion model have no animation", async ({ page }) => {
 });
 
 test("studio animates FIG notation and combinations, and records video", async ({ page }) => {
+  test.setTimeout(120_000);
   await page.goto("/animate");
   await expect(page.locator(".anim-viewport canvas")).toBeVisible({ timeout: 15_000 });
   await page.getByRole("tab", { name: "FIG notation" }).click();
@@ -54,6 +55,7 @@ test("studio animates FIG notation and combinations, and records video", async (
   await page.getByLabel("Skill", { exact: true }).selectOption({ label: "Tuck jump" });
   await page.getByRole("button", { name: "Save video" }).click();
   const link = page.getByRole("link", { name: /download tuck-jump\.webm/ });
-  await expect(link).toBeVisible({ timeout: 20_000 });
+  // Software rendering in CI is slow, and recording plays the skill through in real time.
+  await expect(link).toBeVisible({ timeout: 60_000 });
   expect(await link.getAttribute("href")).toMatch(/^blob:/);
 });
