@@ -27,10 +27,10 @@ export function SubmitButton({
 const control =
   "w-full rounded-[var(--radius-control)] border border-line-strong bg-surface px-3 text-[15px] text-ink placeholder:text-muted/70 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25 aria-[invalid=true]:border-danger";
 
-export function Field({ label, name, hint, error, children, className }: { label: string; name: string; hint?: ReactNode; error?: string[]; children: ReactNode; className?: string }) {
+export function Field({ label, name, hint, error, children, className, htmlFor }: { label: string; name: string; hint?: ReactNode; error?: string[]; children: ReactNode; className?: string; htmlFor?: string }) {
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
-      <label htmlFor={name} className="text-sm font-medium text-ink">
+      <label htmlFor={htmlFor ?? name} className="text-sm font-medium text-ink">
         {label}
       </label>
       {children}

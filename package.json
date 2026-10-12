@@ -20,7 +20,7 @@
     "make-admin": "tsx --env-file-if-exists=.env scripts/make-admin.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
+    "test:e2e": "next build && playwright test",
     "eval:assistant": "tsx --env-file-if-exists=.env scripts/eval-assistant.ts"
   },
   "dependencies": {

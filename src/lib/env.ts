@@ -13,6 +13,8 @@ const schema = z.object({
   VIDEO_MAX_BYTES: z.coerce.number().int().positive().default(200 * 1024 * 1024),
   ANTHROPIC_API_KEY: optional,
   ANTHROPIC_MODEL: z.string().default("claude-opus-5-5"),
+  /** Sign-ups allowed per client IP per hour. Clubs often register a whole group from one network. */
+  SIGNUP_RATE_LIMIT_PER_HOUR: z.coerce.number().int().positive().default(20),
   LLM_DAILY_TOKEN_BUDGET: z.coerce.number().int().nonnegative().default(200_000),
   SEARCH_PROVIDER: optional,
   SEARCH_API_KEY: optional,

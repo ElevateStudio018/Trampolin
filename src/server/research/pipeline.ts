@@ -101,6 +101,14 @@ export async function requestResearch(actor: Actor, input: z.input<typeof resear
 export async function runGapScan(job: JobRow) {
   const gaps = await findGaps(10);
   const log: LogLine[] = [line("info", `Found ${gaps.length} entries needing research.`)];
+  if (!getSearchProvider()) {
+    // Without web search an automatic job could only end up blocked; list the gaps for manual research instead.
+    log.push(line("warn", "No web search provider configured: gaps are listed for manual research, no jobs queued."));
+    for (const g of gaps) log.push(line("info", `${g.name}: ${g.reasons.join(", ")}`));
+    await appendLog(job.id, log);
+    await finishJob(job.id, "succeeded", { gaps: gaps.length, enqueued: 0 });
+    return;
+  }
   let enqueued = 0;
   for (const g of gaps) {
     const res = await enqueue("research.entry", { entryId: g.entryId, topic: g.name, urls: [], pasted: [] }, `research.entry:${g.entryId}:`, job.createdBy);

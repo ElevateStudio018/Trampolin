@@ -229,8 +229,8 @@ export function RelationForm({ fromId, entries }: { fromId: string; entries: { i
           <FormMessage state={s} />
           <input type="hidden" name="fromId" value={fromId} />
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Entry" name="toId">
-              <Select name="toId" required>
+            <Field label="Entry" name="toId" htmlFor="relationTo">
+              <Select id="relationTo" name="toId" required>
                 {entries.map((e) => (
                   <option key={e.id} value={e.id}>
                     {e.name}
@@ -238,8 +238,8 @@ export function RelationForm({ fromId, entries }: { fromId: string; entries: { i
                 ))}
               </Select>
             </Field>
-            <Field label="Relationship" name="kind">
-              <Select name="kind" defaultValue="related">
+            <Field label="Relationship" name="kind" htmlFor="relationKind">
+              <Select id="relationKind" name="kind" defaultValue="related">
                 <option value="related">Related</option>
                 <option value="variant_of">Variant of</option>
                 <option value="distinct_from">Not to be confused with</option>
@@ -247,8 +247,8 @@ export function RelationForm({ fromId, entries }: { fromId: string; entries: { i
               </Select>
             </Field>
           </div>
-          <Field label="Note" name="note">
-            <Input name="note" maxLength={300} />
+          <Field label="Note" name="note" htmlFor="relationNote">
+            <Input id="relationNote" name="note" maxLength={300} />
           </Field>
           <div>
             <SubmitButton size="sm" variant="secondary">Save link</SubmitButton>

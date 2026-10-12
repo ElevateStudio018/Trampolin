@@ -186,3 +186,22 @@ describe("research pipeline", () => {
     expect(row!.status).toBe("rejected");
   });
 });
+
+describe("gap scan", () => {
+  it("queues research jobs only when a search provider can serve them", async () => {
+    const { runGapScan } = await import("@/server/research/pipeline");
+    const { enqueue } = await import("@/server/jobs/queue");
+    setSearchProviderForTests(null);
+    const { job } = await enqueue("research.gap_scan", {}, `test-gap-${Date.now()}`);
+    await runGapScan(job);
+    const [done] = await db.select().from(jobs).where(eq(jobs.id, job.id));
+    expect(done!.status).toBe("succeeded");
+    expect((done!.result as { enqueued: number }).enqueued).toBe(0);
+
+    setSearchProviderForTests({ name: "fake", search: async () => [] });
+    const { job: job2 } = await enqueue("research.gap_scan", {}, `test-gap2-${Date.now()}`);
+    await runGapScan(job2);
+    const [done2] = await db.select().from(jobs).where(eq(jobs.id, job2.id));
+    expect((done2!.result as { enqueued: number }).enqueued).toBeGreaterThan(0);
+  });
+});

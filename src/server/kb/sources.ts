@@ -60,7 +60,7 @@ export type ClaimInput = z.input<typeof claimInputSchema>;
  * Adds a claim to an entry. A claim marked "supported" or "limited" must cite at least
  * one supporting source — the platform never stores an uncited claim as supported.
  */
-export async function addClaim(entryId: string, input: ClaimInput, actor: Actor, tx?: DbOrTx) {
+export async function addClaim(entryId: string, input: ClaimInput, actor: Actor, tx?: DbOrTx, opts: { recordRevision?: boolean } = {}) {
   assertRole(actor, "reviewer");
   const parsed = claimInputSchema.safeParse(input);
   if (!parsed.success) throw new ValidationError("Invalid claim", z.flattenError(parsed.error).fieldErrors);
@@ -79,6 +79,20 @@ export async function addClaim(entryId: string, input: ClaimInput, actor: Actor,
         .insert(claimSources)
         .values(data.citations.map((c) => ({ claimId: claim!.id, sourceId: c.sourceId, stance: c.stance, excerpt: c.excerpt })))
         .onConflictDoNothing();
+    if (opts.recordRevision) {
+      const [e] = await t
+        .update(entries)
+        .set({ revision: sql`${entries.revision} + 1`, updatedAt: new Date() })
+        .where(eq(entries.id, entryId))
+        .returning();
+      await t.insert(entryRevisions).values({
+        entryId,
+        revision: e!.revision,
+        snapshot: { addedClaim: { statement: data.statement, status: data.status, citations: data.citations } },
+        changeSummary: `Added claim: ${data.statement.slice(0, 80)}`,
+        authorId: actor.id,
+      });
+    }
     await audit(actor.id, "claim.add", "entry", entryId, { claimId: claim!.id }, t);
     return claim!;
   };

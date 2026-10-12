@@ -60,3 +60,31 @@ describe("data export", () => {
     expect(json).not.toMatch(/password|storageKey|scrypt\$/);
   });
 });
+
+describe("bookmarks and admin user management", () => {
+  it("bookmarks toggle and list only visible posts", async () => {
+    const { toggleBookmark, listBookmarks } = await import("@/server/community/service");
+    const author = await makeUser();
+    const reader = await makeUser();
+    const p = await createPost(author, { body: "Bookmark me" });
+    expect(await toggleBookmark(reader, p.id)).toBe(true);
+    expect((await listBookmarks(reader)).map((x) => x.id)).toContain(p.id);
+    expect(await toggleBookmark(reader, p.id)).toBe(false);
+    expect(await listBookmarks(reader)).toHaveLength(0);
+  });
+
+  it("only admins change roles or suspend, never themselves", async () => {
+    const { setUserRole, setSuspended } = await import("@/server/community/service");
+    const { authenticate } = await import("@/server/auth/service");
+    const admin = await makeUser("admin");
+    const reviewer = await makeUser("reviewer");
+    const target = await makeUser();
+    await expect(setUserRole(reviewer, target.id, "admin")).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(setUserRole(admin, admin.id, "member")).rejects.toThrow(/own role/);
+    await setUserRole(admin, target.id, "reviewer");
+    await setSuspended(admin, target.id, true);
+    expect(await authenticate(target.email, target.password)).toBeNull();
+    await setSuspended(admin, target.id, false);
+    expect(await authenticate(target.email, target.password)).toEqual({ id: target.id });
+  });
+});

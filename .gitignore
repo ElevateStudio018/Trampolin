@@ -11,3 +11,4 @@ next-env.d.ts
 .env.local
 .env.*.local
 !.env.example
+storage-e2e/

@@ -81,6 +81,8 @@ export async function addClaimAction(_: ActionState, fd: FormData): Promise<Acti
         citations: sourceId ? [{ sourceId, stance: (str(fd, "stance") || "supports") as "supports", excerpt: str(fd, "excerpt") }] : [],
       },
       actor,
+      undefined,
+      { recordRevision: true },
     );
     return { ok: true, message: "Claim added." };
   });

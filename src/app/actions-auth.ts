@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { env } from "@/lib/env";
 import type { ActionState } from "@/lib/action-state";
 import { authenticate, registerUser } from "@/server/auth/service";
 import { endSession, startSession } from "@/server/auth/current";
@@ -10,7 +11,9 @@ import { runAction, str } from "@/server/action";
 
 async function clientKey() {
   const h = await headers();
-  return (h.get("x-forwarded-for")?.split(",")[0] ?? h.get("x-real-ip") ?? "local").trim();
+  // Use the entry appended by the nearest proxy; earlier entries are client-controlled.
+  const forwarded = h.get("x-forwarded-for")?.split(",").map((s) => s.trim()).filter(Boolean);
+  return forwarded?.at(-1) ?? h.get("x-real-ip") ?? "local";
 }
 
 /** Only allow same-site relative redirects after sign-in. */
@@ -33,7 +36,7 @@ export async function signInAction(_: ActionState, formData: FormData): Promise<
 
 export async function signUpAction(_: ActionState, formData: FormData): Promise<ActionState> {
   const result = await runAction(formData, async () => {
-    await rateLimit(`signup:${await clientKey()}`, 5, 3600);
+    await rateLimit(`signup:${await clientKey()}`, env().SIGNUP_RATE_LIMIT_PER_HOUR, 3600);
     const user = await registerUser({
       email: str(formData, "email"),
       password: str(formData, "password"),
