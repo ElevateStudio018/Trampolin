@@ -26,7 +26,7 @@ jobs:
           POSTGRES_DB: trampolin_demo
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U trampolin"
+          --health-cmd "pg_isready -U trampolin -d trampolin_demo"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgres://trampolin:trampolin@localhost:5432/trampolin_demo
