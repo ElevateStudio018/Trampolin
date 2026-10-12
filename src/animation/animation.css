@@ -27,6 +27,14 @@
 .anim-phases button b { color: var(--ink); font-size: 14px; }
 .anim-phases li[aria-current] button { border-color: var(--accent); background: var(--accent-soft); }
 .anim-ph-t { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.anim-physics { font-size: 13px; color: var(--ink-2, var(--ink)); border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 8px 12px; }
+.anim-physics summary { cursor: pointer; font-weight: 600; color: var(--ink); }
+.anim-physics-scroll { overflow-x: auto; margin-top: 8px; }
+.anim-physics table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.anim-physics th, .anim-physics td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.anim-physics thead th { font-weight: 600; font-size: 12px; white-space: normal; vertical-align: bottom; min-width: 70px; }
+.anim-physics th[scope="row"], .anim-physics thead th:first-child { text-align: left; }
+.anim-physics p { margin: 8px 0 0; }
 .anim-note { margin: 0; font-size: 13px; color: var(--ink-2, var(--ink)); }
 .anim-note:empty { display: none; }
 .anim-disclaimer { margin: 0; font-size: 12px; color: var(--muted); }

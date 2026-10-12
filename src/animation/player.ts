@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { DIM } from "./body";
 import type { Frame, Timeline } from "./motion";
 
 /**
@@ -11,10 +13,10 @@ export type CameraPreset = "side" | "wide" | "front" | "three-quarter";
 export type PlayerOptions = {
   onTime?: (t: number, frame: Frame) => void;
   onEnd?: () => void;
-  colors?: { suit: string; limb: string; skin: string; frame: string; pad: string; bed: string; floor: string; trail: string };
+  colors?: Partial<typeof DEFAULT_COLORS>;
 };
 
-const DEFAULT_COLORS = { suit: "#2346d9", limb: "#3a5ce8", skin: "#e9d8c8", frame: "#1d3a8a", pad: "#e8590c", bed: "#16181d", floor: "#d9d6cc", trail: "#e8590c" };
+const DEFAULT_COLORS = { suit: "#1f3fbf", skin: "#d9a184", hair: "#3b2618", frame: "#1d3a8a", pad: "#e8590c", mat: "#2f62c9", bed: "#16181d", floor: "#d9d6cc", trail: "#e8590c" };
 
 // FIG trampoline bed: roughly 4.3 m × 2.1 m inside a 5.05 m × 2.91 m frame, 1.155 m high.
 const BED_LEN = 4.3;
@@ -25,12 +27,40 @@ const BED_Y = 1.155;
 
 type Limb = { joint: THREE.Group };
 
+/** Bed markings drawn into the texture so they sink with the bed: the centre cross and the target zone. */
+function bedTexture(bed: string) {
+  const W = 256;
+  const H = Math.round((W * BED_LEN) / BED_WID);
+  const cv = document.createElement("canvas");
+  cv.width = W;
+  cv.height = H;
+  const g = cv.getContext("2d");
+  if (!g) return null;
+  g.fillStyle = bed;
+  g.fillRect(0, 0, W, H);
+  const px = W / BED_WID;
+  g.strokeStyle = "#c63b1f";
+  g.lineWidth = 0.05 * px;
+  g.strokeRect(W / 2 - 0.54 * px, H / 2 - 1.075 * px, 1.08 * px, 2.15 * px);
+  g.beginPath();
+  g.moveTo(W / 2 - 0.3 * px, H / 2);
+  g.lineTo(W / 2 + 0.3 * px, H / 2);
+  g.moveTo(W / 2, H / 2 - 0.3 * px);
+  g.lineTo(W / 2, H / 2 + 0.3 * px);
+  g.stroke();
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
 export class SkillPlayer {
   readonly canvas: HTMLCanvasElement;
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(38, 16 / 9, 0.1, 100);
-  private root = new THREE.Group(); // pelvis, positioned at CoM height
+  private root = new THREE.Group(); // pelvis
+  private com = new THREE.Vector3(0, BED_Y + 1, 0);
   private orient = new THREE.Group(); // somersault + twist
   private bedGeom: THREE.PlaneGeometry;
   private bedBase: Float32Array;
@@ -66,9 +96,17 @@ export class SkillPlayer {
     this.scene.background = new THREE.Color(c.floor).lerp(new THREE.Color("#ffffff"), 0.55);
     this.scene.fog = new THREE.Fog(this.scene.background, 18, 40);
 
-    // Lights
-    this.scene.add(new THREE.HemisphereLight("#ffffff", "#8a8578", 1.6));
-    const sun = new THREE.DirectionalLight("#ffffff", 2.2);
+    // Image-based lighting (a neutral studio room) plus a key light for shadows.
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.05;
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    const room = new RoomEnvironment();
+    this.scene.environment = pmrem.fromScene(room, 0.04).texture;
+    this.scene.environmentIntensity = 0.55;
+    room.dispose();
+    pmrem.dispose();
+    this.scene.add(new THREE.HemisphereLight("#ffffff", "#8a8578", 0.7));
+    const sun = new THREE.DirectionalLight("#fff6ea", 2.4);
     sun.position.set(6, 12, 5);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -120,18 +158,17 @@ export class SkillPlayer {
     this.bedGeom = new THREE.PlaneGeometry(BED_WID, BED_LEN, 24, 40);
     this.bedGeom.rotateX(-Math.PI / 2);
     this.bedBase = Float32Array.from(this.bedGeom.attributes.position!.array as Float32Array);
-    const bed = new THREE.Mesh(this.bedGeom, new THREE.MeshStandardMaterial({ color: c.bed, roughness: 0.95, side: THREE.DoubleSide }));
+    const bed = new THREE.Mesh(this.bedGeom, new THREE.MeshStandardMaterial({ map: bedTexture(c.bed), roughness: 0.95, side: THREE.DoubleSide }));
     bed.position.y = BED_Y;
     bed.receiveShadow = true;
     tramp.add(bed);
-    // Centre cross (target zone marking)
-    const markMat = new THREE.MeshBasicMaterial({ color: "#c63b1f" });
-    const m1 = new THREE.Mesh(new THREE.PlaneGeometry(0.03, 0.6), markMat);
-    const m2 = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.03), markMat);
-    for (const m of [m1, m2]) {
-      m.rotation.x = -Math.PI / 2;
-      m.position.y = BED_Y + 0.004;
-      tramp.add(m);
+    // End-deck safety mats on the floor at both ends.
+    const matMat = new THREE.MeshStandardMaterial({ color: c.mat, roughness: 0.85 });
+    for (const s of [-1, 1]) {
+      const mat = new THREE.Mesh(new THREE.BoxGeometry(FRAME_WID + 0.6, 0.2, 2), matMat);
+      mat.position.set(0, 0.1, s * (FRAME_LEN / 2 + 1.05));
+      mat.castShadow = mat.receiveShadow = true;
+      tramp.add(mat);
     }
     this.scene.add(tramp);
 
@@ -154,14 +191,40 @@ export class SkillPlayer {
   }
 
   private buildFigure(c: typeof DEFAULT_COLORS) {
-    const suit = new THREE.MeshStandardMaterial({ color: c.suit, roughness: 0.55 });
-    const limb = new THREE.MeshStandardMaterial({ color: c.limb, roughness: 0.6 });
-    const skin = new THREE.MeshStandardMaterial({ color: c.skin, roughness: 0.7 });
-    const capsule = (r: number, len: number, mat: THREE.Material, down = true) => {
-      const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 6, 12), mat);
-      m.position.y = down ? -len / 2 - r * 0.2 : len / 2 + r * 0.2;
-      m.castShadow = true;
-      return m;
+    // Proportions come from DIM in body.ts, so what is drawn is what the physics computes.
+    const leotard = new THREE.MeshPhysicalMaterial({ color: c.suit, roughness: 0.38, metalness: 0.05, sheen: 1, sheenColor: new THREE.Color(c.suit).lerp(new THREE.Color("#ffffff"), 0.5), sheenRoughness: 0.35, clearcoat: 0.25, clearcoatRoughness: 0.4 });
+    const skin = new THREE.MeshPhysicalMaterial({ color: c.skin, roughness: 0.55, sheen: 0.4, sheenColor: new THREE.Color("#ffd9c4"), sheenRoughness: 0.6 });
+    const hair = new THREE.MeshStandardMaterial({ color: c.hair, roughness: 0.65 });
+    const dark = new THREE.MeshStandardMaterial({ color: "#20160f", roughness: 0.3 });
+    const shoe = new THREE.MeshStandardMaterial({ color: "#f4f1ea", roughness: 0.8 });
+    const mesh = (g: THREE.BufferGeometry, m: THREE.Material) => {
+      const x = new THREE.Mesh(g, m);
+      x.castShadow = true;
+      x.receiveShadow = true;
+      return x;
+    };
+    /** Tapered limb hanging down from its joint: radii given at fractions of the length, with rounded ends. */
+    const limb = (len: number, radii: [number, number][], m: THREE.Material, depth = 1) => {
+      const pts: THREE.Vector2[] = [];
+      const r0 = radii[0]![1];
+      const r1 = radii[radii.length - 1]![1];
+      for (let i = 0; i <= 5; i++) {
+        const a = (i / 5) * (Math.PI / 2);
+        pts.push(new THREE.Vector2(r1 * Math.sin(a), -len - r1 * 0.8 * Math.cos(a)));
+      }
+      for (let i = radii.length - 2; i >= 1; i--) pts.push(new THREE.Vector2(radii[i]![1], -radii[i]![0] * len));
+      for (let i = 0; i <= 5; i++) {
+        const a = ((5 - i) / 5) * (Math.PI / 2);
+        pts.push(new THREE.Vector2(r0 * Math.sin(a), r0 * 0.8 * Math.cos(a)));
+      }
+      const g = new THREE.LatheGeometry(pts, 28);
+      g.scale(1, 1, depth);
+      return mesh(g, m);
+    };
+    const lathe = (profile: [number, number][], m: THREE.Material, depth: number) => {
+      const g = new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), 36);
+      g.scale(1, 1, depth);
+      return mesh(g, m);
     };
     const joint = (name: string, parent: THREE.Object3D, x: number, y: number, z = 0) => {
       const g = new THREE.Group();
@@ -171,35 +234,79 @@ export class SkillPlayer {
       return g;
     };
     this.root.add(this.orient);
-    const pelvis = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 12), suit);
-    pelvis.scale.set(1.15, 0.8, 0.8);
-    pelvis.castShadow = true;
-    this.orient.add(pelvis);
-    const spine = joint("spine", this.orient, 0, 0.05);
-    spine.add(capsule(0.14, 0.38, suit, false));
-    const neck = joint("neck", spine, 0, 0.6);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.11, 20, 16), skin);
-    head.position.y = 0.12;
-    head.castShadow = true;
+
+    // Pelvis (leotard) in the body frame.
+    this.orient.add(
+      lathe([[0, -0.165], [0.07, -0.16], [0.125, -0.12], [0.145, -0.05], [0.14, 0.0], [0.122, 0.05], [0, 0.07]], leotard, 0.72),
+    );
+    // Trunk: waist, rib cage and shoulders.
+    const spine = joint("spine", this.orient, 0, DIM.spineY);
+    spine.add(
+      lathe([[0, -0.07], [0.12, -0.06], [0.112, 0.04], [0.118, 0.14], [0.135, 0.25], [0.148, 0.34], [0.152, 0.41], [0.14, 0.455], [0.1, 0.49], [0.05, 0.505], [0, 0.51]], leotard, 0.66),
+    );
+    // Neck and head.
+    const neck = joint("neck", spine, 0, DIM.trunk);
+    const neckMesh = mesh(new THREE.CylinderGeometry(0.043, 0.05, 0.1, 18), skin);
+    neckMesh.position.y = 0.03;
+    neck.add(neckMesh);
+    const head = mesh(new THREE.SphereGeometry(0.1, 32, 24), skin);
+    head.scale.set(0.86, 1.08, 1);
+    head.position.set(0, 0.155, 0.01);
     neck.add(head);
-    // A small "nose" marker so facing direction is readable.
-    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.06, 8), skin);
-    nose.rotation.x = Math.PI / 2;
-    nose.position.set(0, 0.12, 0.11);
+    const jaw = mesh(new THREE.SphereGeometry(0.07, 24, 16), skin);
+    jaw.scale.set(0.95, 0.8, 1);
+    jaw.position.set(0, 0.105, 0.035);
+    neck.add(jaw);
+    const nose = mesh(new THREE.SphereGeometry(0.016, 12, 8), skin);
+    nose.scale.set(0.8, 1.2, 1);
+    nose.position.set(0, 0.145, 0.105);
     neck.add(nose);
+    for (const sx of [1, -1]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.011, 12, 8), dark);
+      eye.position.set(sx * 0.032, 0.17, 0.088);
+      neck.add(eye);
+      const ear = mesh(new THREE.SphereGeometry(0.02, 12, 8), skin);
+      ear.scale.set(0.5, 1, 0.8);
+      ear.position.set(sx * 0.086, 0.15, -0.005);
+      neck.add(ear);
+    }
+    const cap = mesh(new THREE.SphereGeometry(0.106, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.56), hair);
+    cap.scale.set(0.9, 1.08, 1.04);
+    cap.rotation.x = -0.45;
+    cap.position.set(0, 0.162, -0.004);
+    neck.add(cap);
+    const bun = mesh(new THREE.SphereGeometry(0.042, 18, 14), hair);
+    bun.position.set(0, 0.225, -0.085);
+    neck.add(bun);
+
     for (const [side, sx] of [["L", 1], ["R", -1]] as const) {
-      const sh = joint(`shoulder${side}`, spine, sx * 0.2, 0.52);
-      sh.add(capsule(0.05, 0.24, limb));
-      const el = joint(`elbow${side}`, sh, 0, -0.33);
-      el.add(capsule(0.045, 0.22, skin));
-      const hip = joint(`hip${side}`, this.orient, sx * 0.1, -0.05);
-      hip.add(capsule(0.075, 0.36, limb));
-      const knee = joint(`knee${side}`, hip, 0, -0.45);
-      knee.add(capsule(0.06, 0.36, limb));
-      const foot = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.2), skin);
-      foot.position.set(0, -0.47, 0.05);
-      foot.castShadow = true;
-      knee.add(foot);
+      const sh = joint(`shoulder${side}`, spine, sx * DIM.shoulderX, DIM.trunk - DIM.shoulderDrop);
+      const delt = mesh(new THREE.SphereGeometry(0.052, 18, 14), leotard);
+      delt.scale.set(1, 0.95, 1);
+      delt.position.y = -0.01;
+      sh.add(delt);
+      sh.add(limb(DIM.upperArm, [[0, 0.047], [0.3, 0.045], [0.75, 0.037], [1, 0.034]], skin));
+      const el = joint(`elbow${side}`, sh, 0, -DIM.upperArm);
+      el.add(limb(DIM.forearm, [[0, 0.035], [0.25, 0.038], [0.75, 0.029], [1, 0.024]], skin));
+      const hand = limb(DIM.hand * 0.7, [[0, 0.024], [0.4, 0.03], [1, 0.022]], skin, 0.45);
+      hand.rotation.y = Math.PI / 2; // flat side of the hand faces the body
+      hand.position.y = -DIM.forearm - 0.01;
+      el.add(hand);
+
+      const hip = joint(`hip${side}`, this.orient, sx * DIM.hipX, DIM.hipY);
+      hip.add(limb(DIM.thigh, [[0, 0.074], [0.2, 0.072], [0.6, 0.058], [1, 0.046]], skin));
+      const knee = joint(`knee${side}`, hip, 0, -DIM.thigh);
+      knee.add(limb(DIM.shank, [[0, 0.046], [0.22, 0.052], [0.55, 0.04], [0.9, 0.028], [1, 0.027]], skin));
+      const ankle = joint(`ankle${side}`, knee, 0, -DIM.shank);
+      const footLen = DIM.footFront - DIM.footBack;
+      const foot = mesh(new THREE.CapsuleGeometry(0.034, footLen - 0.068, 6, 16), shoe);
+      foot.rotation.x = Math.PI / 2;
+      foot.scale.set(1.2, 1, 0.75);
+      foot.position.set(0, -DIM.footDrop + 0.01, (DIM.footFront + DIM.footBack) / 2);
+      ankle.add(foot);
+      const heel = mesh(new THREE.SphereGeometry(0.033, 14, 10), shoe);
+      heel.position.set(0, -0.035, -0.015);
+      ankle.add(heel);
     }
   }
 
@@ -210,7 +317,8 @@ export class SkillPlayer {
     const qs = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), f.somersault);
     const qt = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), f.twist);
     this.orient.quaternion.copy(qs.multiply(qt));
-    this.root.position.set(0, BED_Y + f.height, 0);
+    this.root.position.set(f.pelvis[0], BED_Y + f.pelvis[1], f.pelvis[2]);
+    this.com.set(f.com[0], BED_Y + f.com[1], f.com[2]);
     p.spine!.joint.rotation.set(j.spine, 0, 0);
     p.neck!.joint.rotation.set(j.neck, 0, 0);
     for (const [side, sx] of [["L", 1], ["R", -1]] as const) {
@@ -218,8 +326,9 @@ export class SkillPlayer {
       p[`elbow${side}`]!.joint.rotation.set(-j.elbow, 0, 0);
       p[`hip${side}`]!.joint.rotation.set(-j.hipFlex, 0, sx * j.hipAbd);
       p[`knee${side}`]!.joint.rotation.set(j.knee, 0, 0);
+      p[`ankle${side}`]!.joint.rotation.set(j.ankle, 0, 0);
     }
-    // Bed: smooth depression under the athlete.
+    // Bed: the simulated centre depression spread over the bed (a fundamental-mode shape).
     const pos = this.bedGeom.attributes.position!;
     const arr = pos.array as Float32Array;
     for (let i = 0; i < pos.count; i++) {
@@ -227,7 +336,10 @@ export class SkillPlayer {
       const z = this.bedBase[i * 3 + 2]!;
       const fx = Math.cos((Math.PI * x) / BED_WID);
       const fz = Math.cos((Math.PI * z) / BED_LEN);
-      arr[i * 3 + 1] = -f.bedDepth * Math.max(0, fx) ** 1.2 * Math.max(0, fz) ** 1.2;
+      const r = Math.hypot(x / 0.35, z / 0.45);
+      const local = f.bedDepth > 0 ? Math.exp(-r * r * 0.5) : 0;
+      const shape = Math.max(0, fx) ** 1.2 * Math.max(0, fz) ** 1.2;
+      arr[i * 3 + 1] = -f.bedDepth * (0.75 * shape + 0.25 * local * shape);
     }
     pos.needsUpdate = true;
     this.bedGeom.computeVertexNormals();
@@ -236,9 +348,9 @@ export class SkillPlayer {
   private pushTrail() {
     if (!this.showTrail) return;
     const i = this.trailCount % 600;
-    this.trailPositions[i * 3] = this.root.position.x;
-    this.trailPositions[i * 3 + 1] = this.root.position.y;
-    this.trailPositions[i * 3 + 2] = this.root.position.z;
+    this.trailPositions[i * 3] = this.com.x;
+    this.trailPositions[i * 3 + 1] = this.com.y;
+    this.trailPositions[i * 3 + 2] = this.com.z;
     this.trailCount++;
     const geom = this.trail.geometry;
     geom.setDrawRange(0, Math.min(this.trailCount, 600));
@@ -323,25 +435,31 @@ export class SkillPlayer {
   }
 
   private camY = BED_Y + 1.6;
+  private camDist = 7.2;
 
   private updateCamera(snap = false) {
-    // Tracking presets follow the athlete's height smoothly, so the body stays large in frame.
-    const bodyY = this.root.position.y;
-    const desired = Math.max(BED_Y + 1.2, bodyY + 0.1);
+    // The follow camera keeps the bed and the athlete in frame: it aims between them and
+    // backs off as the athlete rises, so the height of the bounce stays visible.
+    const bodyY = this.com.y;
+    const rise = Math.max(0, bodyY - (BED_Y + 1.2));
+    const desired = BED_Y + 1.2 + rise * 0.55;
+    const desiredDist = 7.2 + rise * 0.75;
     this.camY = snap ? desired : this.camY + (desired - this.camY) * 0.18;
+    this.camDist = snap ? desiredDist : this.camDist + (desiredDist - this.camDist) * 0.18;
     const y = this.camY;
+    const d = this.camDist;
     if (this.preset === "side") {
-      this.camera.position.set(7.2, y + 0.35, 0.3);
+      this.camera.position.set(d, y + 0.35, 0.3);
       this.camera.lookAt(0, y, 0);
     } else if (this.preset === "front") {
-      this.camera.position.set(0.3, y + 0.5, 8);
+      this.camera.position.set(0.3, y + 0.5, d + 0.8);
       this.camera.lookAt(0, y, 0);
     } else if (this.preset === "three-quarter") {
-      this.camera.position.set(5.6, y + 1.6, 5.6);
+      this.camera.position.set(d * 0.78, y + 1.6, d * 0.78);
       this.camera.lookAt(0, y - 0.2, 0);
     } else {
-      this.camera.position.set(11.5, BED_Y + 2.4, 0.3);
-      this.camera.lookAt(0, BED_Y + 2.1, 0);
+      this.camera.position.set(14, BED_Y + 3, 0.3);
+      this.camera.lookAt(0, BED_Y + 2.6, 0);
     }
   }
 

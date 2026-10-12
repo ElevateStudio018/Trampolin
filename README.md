@@ -15,7 +15,7 @@ Every Trick Book entry shows **where each statement comes from** and **how far t
 
 ## 3D animations
 
-`src/animation/` animates skills from their rotation and twist data (Three.js): each Trick Book skill with a motion model gets an animation on its page, and `/animate` adds a FIG notation player (e.g. `822o`, a tucked double with a full twist in each somersault) and a combination builder that only allows skills starting where the previous one landed. Playback has phase-by-phase steps, slow motion, camera angles and WebM export. The animations show what a skill is, not how to learn it.
+`src/animation/` animates skills from their rotation and twist data with simple physics (Three.js): a segmented body whose moment of inertia changes with its shape, gravity in the air, conservation of angular momentum (tucking spins faster) and a spring bed. In the app, each Trick Book skill with a motion model gets an animation on its page, and `/animate` adds a FIG notation player (e.g. `822o`, a tucked double with a full twist in each somersault) and a combination builder that only allows skills starting where the previous one landed. Playback has phase-by-phase steps, slow motion, camera angles and WebM export. The animations show what a skill is, not how to learn it.
 
 ## Stack
 

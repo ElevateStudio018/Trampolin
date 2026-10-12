@@ -12,6 +12,9 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 export const DISCLAIMER =
   "Schematic animation computed from the skill's rotation, twists and body shape. It shows what the skill is, not how to learn it: somersaults and twists must be learned with a qualified coach, proper matting and spotting.";
 
+export const PHYSICS_NOTE =
+  "Model: a 55 kg, 1.65 m athlete built from 14 body segments (de Leva 1996 mass fractions). In the air the centre of mass follows a parabola under g = 9.81 m/s² and angular momentum is conserved, so the rotation speeds up when the body is compact and slows when it opens. The bed is a spring that sinks under the athlete and returns the energy. The body shape over time is prescribed, and air resistance, twist–somersault coupling and travel across the bed are not modelled. Flight times are typical values, not measurements.";
+
 export type Animator = { setTimeline(tl: Timeline, note?: string): void; destroy(): void };
 
 export function mountAnimator(host: HTMLElement, tl: Timeline, note?: string): Animator {
@@ -32,6 +35,7 @@ export function mountAnimator(host: HTMLElement, tl: Timeline, note?: string): A
       <span class="anim-rec-status" role="status"></span>
     </div>
     <ol class="anim-phases"></ol>
+    <details class="anim-physics"><summary>Physics in this animation</summary><div class="anim-physics-body"></div></details>
     <p class="anim-note"></p>
     <p class="anim-disclaimer">${esc(DISCLAIMER)}</p>`;
   const $ = <T extends HTMLElement>(sel: string) => host.querySelector(sel) as T;
@@ -74,12 +78,27 @@ export function mountAnimator(host: HTMLElement, tl: Timeline, note?: string): A
     marks.innerHTML = current.phases.map((p) => `<span style="left:${(p.start / current.duration) * 100}%"></span>`).join("");
   }
 
+  function renderPhysics() {
+    const rows = current.physics
+      .map(
+        (p) => `<tr><th scope="row">${esc(p.skill)}</th><td>${p.flightTime.toFixed(2)} s</td><td>${p.takeoffSpeed.toFixed(1)} m/s</td><td>${p.apexHeight.toFixed(1)} m</td><td>${Math.round(p.bedDepth * 100)} cm</td><td>${p.angularMomentum ? p.angularMomentum.toFixed(0) : "–"}</td><td>${p.peakSomersaultRate ? p.peakSomersaultRate.toFixed(2) : "–"}</td><td>${p.peakTwistRate ? p.peakTwistRate.toFixed(2) : "–"}</td></tr>`,
+      )
+      .join("");
+    $<HTMLDivElement>(".anim-physics-body").innerHTML = `
+      <div class="anim-physics-scroll"><table>
+        <thead><tr><th scope="col">Skill</th><th scope="col">Flight time</th><th scope="col">Take-off speed</th><th scope="col">Highest CoM</th><th scope="col">Bed depression</th><th scope="col">Angular momentum (kg·m²/s)</th><th scope="col">Peak somersault (rev/s)</th><th scope="col">Peak twist (rev/s)</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+      <p>${esc(PHYSICS_NOTE)}</p>`;
+  }
+
   function setTimeline(next: Timeline, nextNote?: string) {
     player.pause();
     setPlaying(false);
     current = next;
     lastPhase = -1;
     renderPhases();
+    renderPhysics();
     $<HTMLParagraphElement>(".anim-note").textContent = nextNote ?? next.spec.note ?? "";
     player.load(next, `3D animation of ${next.spec.name}`);
     if (!reduceMotion) {
