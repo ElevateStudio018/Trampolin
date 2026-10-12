@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Trampolin — trampoline trick book (static demo)</title>
+    <meta name="description" content="A source-checked trampoline trick book. Static demo of the Trampolin app." />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="stylesheet" href="styles.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='18' width='28' height='4' rx='2' fill='%23e8590c'/%3E%3Cpath d='M6 22v6M26 22v6' stroke='%2312161c' stroke-width='2.5' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='8' r='4.5' fill='%232346d9'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <div class="demo-banner" role="note">
+      Static demo on GitHub Pages: read-only Trick Book, assistant in retrieval-only mode, collection saved in this browser only. Accounts, videos,
+      community and the research agent need the full server version.
+    </div>
+    <header class="site-header">
+      <div class="container header-row">
+        <a href="#/" class="wordmark" aria-label="Trampolin home">
+          <svg viewBox="0 0 32 32" aria-hidden="true">
+            <rect x="2" y="18" width="28" height="4" rx="2" fill="var(--pad)" />
+            <path d="M6 22v6M26 22v6" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round" />
+            <circle cx="16" cy="8" r="4.5" fill="var(--accent)" />
+          </svg>
+          <span>Trampolin</span>
+        </a>
+        <nav aria-label="Primary" class="primary-nav" id="nav">
+          <a href="#/tricks" data-nav="tricks">Trick Book</a>
+          <a href="#/explore" data-nav="explore">Explore</a>
+          <a href="#/collection" data-nav="collection">Collection</a>
+          <a href="#/assistant" data-nav="assistant">Assistant</a>
+          <a href="#/about" data-nav="about">About</a>
+        </nav>
+      </div>
+    </header>
+    <main id="main" tabindex="-1"><div class="container"><p class="muted" style="padding-top:2rem">Loading…</p></div></main>
+    <footer class="site-footer">
+      <div class="container footer-row">
+        <p>Trampolin is a reference, not coaching. Learn new skills only with a qualified coach and proper safety equipment.</p>
+        <p><a href="https://github.com/ElevateStudio018/Trampolin">Source on GitHub</a></p>
+      </div>
+    </footer>
+    <noscript><p class="container">This demo needs JavaScript.</p></noscript>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

@@ -9,6 +9,10 @@ Every Trick Book entry shows **where each statement comes from** and **how far t
 - Deployment: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
 - Video-analysis model contract: [`docs/VIDEO_ANALYSIS.md`](docs/VIDEO_ANALYSIS.md)
 
+## Static demo (GitHub Pages)
+
+`npm run build:static-demo` exports the published Trick Book from the database into `static-demo-dist/`: a read-only site with search, entry pages, explore, a browser-local collection and the assistant in retrieval-only mode. `.github/workflows/pages.yml` builds it from a freshly seeded database and deploys it to GitHub Pages on every push to the default branch. Enable it once under **Settings → Pages → Source: GitHub Actions**.
+
 ## Stack
 
 Next.js 16 (App Router, server actions) · React 19 · TypeScript · Tailwind CSS 4 · PostgreSQL 16 (`pg_trgm`, `citext`) via Drizzle ORM · Vitest · Playwright · ffprobe. Optional: Anthropic API (assistant wording, research extraction), Brave or Tavily search API (research agent), an external video model over HTTP.
