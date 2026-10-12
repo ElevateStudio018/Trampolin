@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { signIn } from "./helpers";
 import { STAFF } from "./fixtures";
 
-const PUBLIC_PAGES = ["/", "/tricks", "/tricks/miller", "/tricks/corkscrew", "/explore", "/about", "/community", "/videos", "/login", "/signup"];
+const PUBLIC_PAGES = ["/", "/tricks", "/animate", "/tricks/miller", "/tricks/corkscrew", "/explore", "/about", "/community", "/videos", "/login", "/signup"];
 const STAFF_PAGES = ["/collection", "/progress", "/assistant", "/settings", "/studio", "/studio/research", "/studio/review", "/studio/moderation"];
 
 async function check(page: import("@playwright/test").Page, path: string, name: string) {

@@ -5,6 +5,26 @@
  */
 import { normalizeName, trigramSimilarity } from "@/lib/text";
 import { classifyQuestion, SAFETY_NOTICE } from "@/server/assistant/safety";
+import { SKILL_SPECS } from "@/animation/catalog";
+
+// The 3D animator (three.js) is loaded only when a page needs it.
+type AnimatorMod = typeof import("@/animation/ui");
+let animator: { destroy(): void } | null = null;
+const loadAnimator = (): Promise<AnimatorMod> => import("@/animation/ui");
+function mountAnimations() {
+  const entryHost = document.getElementById("entry-anim");
+  const studioHost = document.getElementById("anim-studio");
+  if (!entryHost && !studioHost) return;
+  loadAnimator()
+    .then((m) => {
+      if (entryHost && document.body.contains(entryHost)) animator = m.mountEntryAnimation(entryHost, entryHost.dataset.slug!);
+      if (studioHost && document.body.contains(studioHost)) animator = m.mountStudio(studioHost, { linkFor: (slug) => `#/tricks/${slug}` });
+    })
+    .catch(() => {
+      const host = entryHost ?? studioHost;
+      if (host) host.innerHTML = `<p class="muted small">The 3D animation couldn't load. Reload the page to try again.</p>`;
+    });
+}
 
 type Citation = { sourceId: string; stance: string; excerpt: string };
 type Claim = { statement: string; status: string; citations: Citation[] };
@@ -209,6 +229,7 @@ function viewHome() {
       <section class="card pad"><h2>How to read an entry</h2><p class="muted small" style="margin-top:0">Each entry carries an evidence label, and every statement links to the excerpt that supports it.</p>
         <div class="wrap">${Object.keys(EVIDENCE).map(evidenceBadge).join("")}</div><p style="margin-bottom:0"><a href="#/about">About the data →</a></p></section>
     </div><aside class="stack">
+      <section class="card pad"><h2>3D animations</h2><p class="muted small">See each skill in 3D, phase by phase, including twisting doubles and combinations.</p><a class="btn" href="#/animate">Open animations</a></section>
       <section class="card pad"><h2>Ask the assistant</h2><p class="muted small">Answers come only from Trick Book records, with citations. It says so when the records don't cover something.</p><a class="btn" href="#/assistant">Open assistant</a></section>
       <section class="card pad"><h2>Full version</h2><p class="muted small" style="margin:0">Accounts, private notes, video uploads, the community and the research agent with its review queue run in the server version. See the <a href="https://github.com/ElevateStudio018/Trampolin#readme">README</a>.</p></section>
     </aside></div>`;
@@ -285,6 +306,7 @@ function viewEntry(slug: string) {
     </header>
     <div class="two-col"><div class="stack">
       <section><p class="big-summary">${esc(e.summary)}</p>${e.body ? `<p style="color:var(--ink-2);white-space:pre-line">${esc(e.body)}</p>` : ""}<p class="muted small">${esc(EVIDENCE[e.evidenceStatus]?.help)}</p></section>
+      ${SKILL_SPECS[e.slug] ? `<section><h2>3D animation</h2><div id="entry-anim" data-slug="${esc(e.slug)}"><div class="anim-loading">Loading animation…</div></div></section>` : ""}
       ${distinct.length ? `<section><h2>Not to be confused with</h2><ul class="side-list">${distinct.map((r) => `<li class="card pad small"><a href="#/tricks/${esc(r.slug)}"><b>${esc(r.name)}</b></a>${r.note ? ` — ${esc(r.note)}` : ""}</li>`).join("")}</ul></section>` : ""}
       <section><h2>What the sources say <span class="muted xs" style="font-weight:400">· ${e.claims.length} claims · ${sourceIds.length} sources</span></h2>
         ${
@@ -457,6 +479,11 @@ function viewAssistant(params: URLSearchParams) {
     }</aside></div></div>`;
 }
 
+function viewAnimate() {
+  return `<div class="container">${header("3D animations", "Skill animations", "Watch skills in 3D, step through each phase, type FIG notation to see any twisting somersault — such as 822o, a fliffis with a full twist in each somersault — or chain skills into a combination.")}
+    <div id="anim-studio" style="margin-top:24px"><div class="anim-loading">Loading animator…</div></div></div>`;
+}
+
 function viewAbout() {
   return `<div class="container" style="max-width:48rem">${header("Transparency", "About the data", "How entries are sourced, labelled and reviewed, and what this site is not.")}
     <section style="margin-top:24px"><h2>Evidence labels</h2><ul class="side-list">${Object.entries(EVIDENCE).map(([k, m]) => `<li class="row"><span style="width:11rem;flex-shrink:0">${evidenceBadge(k)}</span><span class="min0">${esc(m.help)}</span></li>`).join("")}</ul></section>
@@ -487,9 +514,13 @@ function route() {
   else if (parts[0] === "collection") [html, nav, title] = [viewCollection(), "collection", "My collection · Trampolin"];
   else if (parts[0] === "assistant") [html, nav, title] = [viewAssistant(params), "assistant", "Assistant · Trampolin"];
   else if (parts[0] === "about") [html, nav, title] = [viewAbout(), "about", "About the data · Trampolin"];
+  else if (parts[0] === "animate") [html, nav, title] = [viewAnimate(), "animate", "3D animations · Trampolin"];
   else html = viewHome();
   if (!html) return;
+  animator?.destroy();
+  animator = null;
   main.innerHTML = html;
+  mountAnimations();
   document.title = title;
   document.querySelectorAll<HTMLAnchorElement>("[data-nav]").forEach((a) => (a.dataset.nav === nav ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
 }

@@ -186,6 +186,13 @@ export default async function Home() {
             </Card>
           )}
           <Card className="p-5">
+            <h2 className="font-semibold">3D animations</h2>
+            <p className="mt-1 text-sm text-ink-2">See each skill in 3D, phase by phase, including twisting doubles and combinations.</p>
+            <LinkButton href="/animate" variant="secondary" size="sm" className="mt-3">
+              Open animations
+            </LinkButton>
+          </Card>
+          <Card className="p-5">
             <h2 className="font-semibold">Ask the assistant</h2>
             <p className="mt-1 text-sm text-ink-2">Questions are answered only from Trick Book records, with citations. It says so when the records don&apos;t cover something.</p>
             <LinkButton href="/assistant" variant="secondary" size="sm" className="mt-3">

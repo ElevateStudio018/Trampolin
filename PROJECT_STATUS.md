@@ -4,7 +4,7 @@ _Last updated: 2026-10-12. Read this first when resuming work._
 
 ## Summary
 
-A working first version of the whole platform: a Trick Book with per-statement citations and evidence labels, personal collections and private notes, a research agent with a review queue, a grounded assistant, a private video library with an extensible analysis boundary, community features with moderation, and staff tooling. The core flows are covered by integration tests (84) and browser end-to-end tests (18), all passing at the time of writing.
+A working first version of the whole platform: a Trick Book with per-statement citations and evidence labels, personal collections and private notes, a research agent with a review queue, a grounded assistant, a private video library with an extensible analysis boundary, community features with moderation, and staff tooling. The core flows are covered by integration tests (119) and browser end-to-end tests (21), all passing at the time of writing.
 
 Stack and layout: see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Setup: [`README.md`](README.md). Deployment: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
@@ -43,6 +43,7 @@ Status values: `verified_against_criteria` · `tested_with_limitations` · `impl
 | Password change | verified_against_criteria | Service test and e2e: the current password is required, other sessions are revoked, this browser stays signed in, and the new password works. |
 | Content-Security-Policy | verified_against_criteria | Per-request nonce via `src/proxy.ts`. e2e checks the header and that client navigation works with no CSP violations; the full suite passes with the policy on. |
 | Video poster images | verified_against_criteria | ffmpeg extracts a JPEG frame during processing, served with the same access check as the video and deleted with it (`video.test.ts`). |
+| 3D skill animations | verified_against_criteria | `src/animation/`: kinematic model (rotation speed tied to body shape, twists per somersault, start/landing poses) for 21 Trick Book skills + 5 linking moves, FIG notation player and combination builder, WebM export. `tests/animation.test.ts`: every spec lands in its stated pose with the right twist total, matches the entry's stored counts, and phase texts contain no instructions. `e2e/animation.spec.ts`: rendering, phases, notation, combinations and a recorded WebM (ffprobe: valid VP9). Schematic, not motion capture; body shapes not given by sources are labelled. |
 | Background worker & daily gap scan | verified_against_criteria | Ran `npm run worker`: it scheduled the scan and processed jobs. Without a search provider the scan lists gaps and queues nothing (test). |
 | Responsive layout, no horizontal overflow | verified_against_criteria | `e2e/visual.spec.ts` checks 18 pages at desktop and Pixel 7 sizes; screenshots were inspected manually, including dark mode. |
 
@@ -51,6 +52,8 @@ Status values: `verified_against_criteria` · `tested_with_limitations` · `impl
 34 published entries and 2 unsourced drafts (`Back somersault`, `Front somersault`) from 14 sources. All claims were checked against **search-engine excerpts** on 2026-10-12, because the full pages could not be fetched from the build environment. Paraphrased excerpts are prefixed "Search summary:". **No entry is marked verified.** Two entries (Adolph, Corkscrew) are marked conflicting because their sources disagree. A reviewer should read the primary sources (especially the FIG Code of Points PDF) in full before upgrading anything to `verified`.
 
 ## Known limitations and bugs
+
+- 3D animations are schematic: a kinematic model from rotation/twist counts, not motion capture. They describe what a skill is, never how to learn it; the kaboom's heel rebound and arm technique are not modelled.
 
 - No password reset or email verification (no email service is configured). Password change while signed in is supported.
 - Local-disk video storage only, so it needs a persistent volume. Serverless hosting requires an S3 `BlobStorage` implementation.
@@ -78,6 +81,6 @@ Status values: `verified_against_criteria` · `tested_with_limitations` · `impl
 ## Test results at last run
 
 - `npm run typecheck`, `npm run lint`: clean.
-- `npm test`: 8 files, 84 tests passed.
-- `npx playwright test` (after `next build`): 18 passed (desktop + mobile visual), run twice in a row without flakes.
+- `npm test`: 9 files, 119 tests passed.
+- `npx playwright test` (after `next build`): 21 passed (desktop + mobile visual).
 - `npm run eval:assistant` (retrieval-only): 13/13.

@@ -136,3 +136,5 @@ sup a { font-weight: 600; font-size: 12px; }
 .history a:hover { background: var(--surface-2); text-decoration: none; }
 .history a[aria-current="true"] { background: var(--surface-2); }
 .pager { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; font-size: 14px; }
+
+.anim-loading { aspect-ratio: 16 / 9; display: grid; place-items: center; border: 1px dashed var(--line-strong); border-radius: var(--radius-card); color: var(--muted); font-size: 14px; }

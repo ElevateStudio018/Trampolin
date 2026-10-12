@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "../animation/animation.css";
 
 /*
  * Trampolin design tokens.

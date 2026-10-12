@@ -41,7 +41,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     { href: "/assistant", label: "Assistant", icon: "chat" },
     { href: "/community", label: "Community", icon: "people" },
   ];
-  const desktopItems: NavItem[] = hasRole(actor, "reviewer") ? [...items, { href: "/studio", label: "Studio", icon: "studio" }] : items;
+  const withAnimations: NavItem[] = [items[0]!, { href: "/animate", label: "3D", icon: "play" }, ...items.slice(1)];
+  const desktopItems: NavItem[] = hasRole(actor, "reviewer") ? [...withAnimations, { href: "/studio", label: "Studio", icon: "studio" }] : withAnimations;
 
   return (
     <html lang="en">

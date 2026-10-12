@@ -7,7 +7,7 @@
  *
  * Usage: npm run build:static-demo   (needs a migrated + seeded DATABASE_URL)
  */
-import { cp, mkdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { build } from "esbuild";
 import { closeDb } from "../src/db";
@@ -70,16 +70,19 @@ await mkdir(OUT, { recursive: true });
 const data = await exportData();
 await writeFile(path.join(OUT, "data.json"), JSON.stringify(data));
 await build({
-  entryPoints: ["static-demo/app.ts"],
+  entryPoints: { app: "static-demo/app.ts" },
   bundle: true,
   minify: true,
   format: "esm",
+  splitting: true, // the three.js animator becomes a lazily loaded chunk
   target: "es2020",
-  outfile: path.join(OUT, "app.js"),
+  outdir: OUT,
+  chunkNames: "chunks/[name]-[hash]",
   alias: { "@": path.resolve("src") },
   logLevel: "warning",
 });
-for (const f of ["index.html", "styles.css", "404.html"]) await cp(path.join("static-demo", f), path.join(OUT, f));
+for (const f of ["index.html", "404.html"]) await cp(path.join("static-demo", f), path.join(OUT, f));
+await writeFile(path.join(OUT, "styles.css"), (await readFile("static-demo/styles.css", "utf8")) + "\n" + (await readFile("src/animation/animation.css", "utf8")));
 await writeFile(path.join(OUT, ".nojekyll"), "");
 console.log(`Static demo written to ${OUT}: ${data.entries.length} entries, ${Object.keys(data.sources).length} sources.`);
 await closeDb();

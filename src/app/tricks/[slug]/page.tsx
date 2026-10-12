@@ -19,6 +19,8 @@ import { findSlugByAlias, getEntryBySlug, relatedEntries } from "@/server/kb/ent
 import { collectionStatusFor, listProgressLogs } from "@/server/me/collection";
 import { listMyVideos } from "@/server/video/service";
 import { CollectionControls, NoteForm, SuggestForm } from "../entry-client";
+import { SkillAnimation } from "@/components/skill-animation";
+import { specForSlug } from "@/animation/catalog";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -130,6 +132,15 @@ export default async function EntryPage({ params }: Props) {
             {entry.body && <div className="prose-tb mt-3 whitespace-pre-line text-[15px]">{entry.body}</div>}
             <p className="mt-3 text-sm text-muted">{EVIDENCE_META[entry.evidenceStatus]?.help}</p>
           </section>
+
+          {specForSlug(entry.slug) && (
+            <section aria-labelledby="animation">
+              <SectionTitle id="animation" action={<Link href="/animate" className="text-sm text-accent hover:underline">All animations</Link>}>
+                3D animation
+              </SectionTitle>
+              <SkillAnimation key={entry.slug} slug={entry.slug} />
+            </section>
+          )}
 
           {distinctions.length > 0 && (
             <section aria-labelledby="distinctions">

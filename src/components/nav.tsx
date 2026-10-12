@@ -14,6 +14,7 @@ export const ICONS = {
   people: "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 9a7 7 0 0 1 14 0M17 11a3 3 0 1 0 0-6M22 20a5 5 0 0 0-5-5",
   studio: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
   home: "M3 11 12 4l9 7v9h-6v-6H9v6H3v-9Z",
+  play: "M7 4v16l13-8L7 4Z",
 } as const;
 
 export function Icon({ name, className }: { name: keyof typeof ICONS; className?: string }) {
